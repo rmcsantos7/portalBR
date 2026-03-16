@@ -6,6 +6,12 @@ const express = require('express');
 const router = express.Router();
 
 const creditosController = require('../controllers/creditos.controller');
+const authMiddleware = require('../middlewares/auth');
+const verificarClienteId = require('../middlewares/verificarClienteId');
+
+// Todas as rotas de créditos são protegidas + verificação de cliente
+router.use(authMiddleware);
+router.use(verificarClienteId);
 
 /**
  * POST /api/creditos/gerar

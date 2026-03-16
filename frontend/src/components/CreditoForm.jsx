@@ -1,33 +1,46 @@
 /**
  * Componente: CreditoForm
  * Sistema de Geração de Crédito - BR GORJETA
+ * Fluxo: Lista de Recargas → Seleção de Colaboradores → Preview → Geração
  */
 
 import React, { useState, useEffect } from 'react';
 import './CreditoForm.css';
 
+import ListaRecargas from './ListaRecargas';
 import TabImportarExcel from './TabImportarExcel';
 import TabSelecaoManual from './TabSelecaoManual';
 import PreviewCredito from './PreviewCredito';
 
 import { useFetchColaboradores } from '../hooks/useFetchColaboradores';
 import { useCredito } from '../hooks/useCredito';
+import { colaboradoresAPI } from '../services/api';
 
-const CreditoForm = ({ clienteId }) => {
+const CreditoForm = ({ clienteId, login = 'sistema' }) => {
   const [abaAtiva, setAbaAtiva] = useState('manual');
-  const [etapa, setEtapa] = useState('selecao');
+  const [etapa, setEtapa] = useState('lista'); // 'lista' | 'selecao' | 'preview'
   const [colaboradoresSelecionados, setColaboradoresSelecionados] = useState([]);
+  const [taxaCliente, setTaxaCliente] = useState(0);
 
   const colaboradoresHook = useFetchColaboradores(clienteId);
-  const creditoHook = useCredito(clienteId);
+  const creditoHook = useCredito(clienteId, login);
 
+  // Busca taxa do cliente uma vez
   useEffect(() => {
     if (clienteId) {
+      colaboradoresAPI.obterTaxa(clienteId)
+        .then(res => setTaxaCliente(res.data.data.taxa || 0))
+        .catch(() => setTaxaCliente(0));
+    }
+  }, [clienteId]);
+
+  useEffect(() => {
+    if (clienteId && etapa === 'selecao') {
       if (abaAtiva === 'manual') {
         colaboradoresHook.buscar();
       }
     }
-  }, [clienteId, abaAtiva]);
+  }, [clienteId, abaAtiva, etapa]);
 
   if (!clienteId) {
     return (
@@ -40,6 +53,10 @@ const CreditoForm = ({ clienteId }) => {
       </div>
     );
   }
+
+  const irParaNovaRecarga = () => {
+    setEtapa('selecao');
+  };
 
   const irParaPreview = (colaboradores) => {
     if (colaboradores.length === 0) {
@@ -55,6 +72,25 @@ const CreditoForm = ({ clienteId }) => {
     setColaboradoresSelecionados([]);
   };
 
+  const voltarParaLista = () => {
+    setEtapa('lista');
+    setColaboradoresSelecionados([]);
+  };
+
+  // Tela inicial: Lista de Recargas
+  if (etapa === 'lista') {
+    return (
+      <div className="credito-container">
+        <div className="card">
+          <ListaRecargas
+            clienteId={clienteId}
+            onNovaRecarga={irParaNovaRecarga}
+          />
+        </div>
+      </div>
+    );
+  }
+
   const renderizarAba = () => {
     if (etapa === 'preview') {
       return (
@@ -62,9 +98,10 @@ const CreditoForm = ({ clienteId }) => {
           clienteId={clienteId}
           colaboradores={colaboradoresSelecionados}
           creditoHook={creditoHook}
+          taxa={taxaCliente}
           onVoltar={voltarParaSelecao}
           onSucesso={() => {
-            voltarParaSelecao();
+            voltarParaLista();
           }}
         />
       );
@@ -100,14 +137,23 @@ const CreditoForm = ({ clienteId }) => {
           <div className="card-header">
             <div>
               <h2 className="card-title">
-                {etapa === 'preview' ? 'Confirmar Geração' : 'Geração de Crédito'}
+                {etapa === 'preview' ? 'Confirmar Geração' : 'Geração de Recarga'}
               </h2>
               <p className="card-subtitle">
                 {etapa === 'preview'
-                  ? 'Revise os dados e confirme a geração de crédito'
+                  ? 'Revise os dados e confirme a recarga'
                   : 'Selecione colaboradores e configure os valores'}
               </p>
             </div>
+            {/* Botão voltar para lista */}
+            {etapa === 'selecao' && (
+              <button className="btn-voltar" onClick={voltarParaLista}>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <polyline points="15 18 9 12 15 6" />
+                </svg>
+                Voltar
+              </button>
+            )}
           </div>
 
           <div className="divider"></div>

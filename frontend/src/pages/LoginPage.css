@@ -1,0 +1,255 @@
+/**
+ * Login Page - responsivo
+ * Fundo: novologin.png
+ * Desktop: branding esquerda + card direita
+ * Mobile: card centralizado + branding compacto abaixo
+ */
+
+.login-page {
+  position: relative;
+  width: 100%;
+  min-height: 100vh;
+  height: 100vh;
+  margin: 0;
+  background-color: #4A1D4F;
+  background-size: cover;
+  background-position: center center;
+  background-repeat: no-repeat;
+  font-family: 'Nunito', sans-serif;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+/* ===== BRANDING ESQUERDA (desktop) ===== */
+.login-branding {
+  position: absolute;
+  left: 12%;
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+}
+
+.login-logo {
+  width: 320px;
+  max-width: 100%;
+  height: auto;
+  margin-bottom: 32px;
+}
+
+.login-tagline {
+  margin: 0 0 24px 0;
+  font-size: 32px;
+  font-weight: 700;
+  font-style: italic;
+  line-height: 1.3;
+}
+
+.login-tagline-white {
+  color: #fff;
+}
+
+.login-tagline-pink {
+  color: #F9678C;
+}
+
+.login-site {
+  margin: 0;
+  color: #fff;
+  font-size: 16px;
+  font-weight: 700;
+}
+
+/* ===== BRANDING COMPACTO (mobile) ===== */
+.login-branding-compact {
+  display: none;
+  flex-direction: column;
+  align-items: center;
+  margin-top: 28px;
+}
+
+.login-logo-compact {
+  width: 180px;
+  height: auto;
+  margin-bottom: 12px;
+}
+
+.login-site-compact {
+  margin: 0;
+  color: #fff;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+/* ===== CARD LOGIN ===== */
+.login-card {
+  position: absolute;
+  right: 8%;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 25%;
+  min-width: 335px;
+  max-width: 400px;
+  background: rgba(74, 29, 79, 0.92);
+  border-radius: 15px;
+  box-shadow: 2px 0px 6px 5px rgba(0, 0, 0, 0.3);
+  padding: 35px 40px 40px;
+  backdrop-filter: blur(8px);
+  z-index: 1;
+}
+
+.login-card h2 {
+  font-size: 30px;
+  font-weight: bold;
+  color: #fff;
+  margin: 0 0 25px 0;
+  text-transform: lowercase;
+}
+
+.login-field {
+  margin-bottom: 16px;
+}
+
+.login-field input {
+  display: block;
+  width: 100%;
+  height: 44px;
+  padding: 0 16px;
+  border: none;
+  border-radius: 6px;
+  font-size: 14px;
+  outline: none;
+  font-family: inherit;
+  background: #fff;
+  color: #333;
+  box-sizing: border-box;
+}
+
+.login-field input:focus {
+  box-shadow: 0 0 0 3px rgba(249, 103, 140, 0.3);
+}
+
+.login-field input::placeholder {
+  color: #999;
+}
+
+.login-btn {
+  display: block;
+  width: 100%;
+  height: 44px;
+  background: #F9678C;
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s;
+  font-family: inherit;
+  margin-top: 8px;
+  box-sizing: border-box;
+}
+
+.login-btn:hover {
+  background: #e8557a;
+}
+
+.login-btn:disabled {
+  background: rgba(255, 255, 255, 0.2);
+  color: rgba(255, 255, 255, 0.5);
+  cursor: not-allowed;
+}
+
+.login-esqueci {
+  text-align: center;
+  margin-top: 14px;
+}
+
+.login-esqueci a {
+  color: #fff;
+  font-size: 12px;
+  text-decoration: none;
+}
+
+.login-esqueci a:hover {
+  color: #F9678C;
+}
+
+.login-lembrar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 4px 0 8px;
+  cursor: pointer;
+  color: rgba(255, 255, 255, 0.85);
+  font-size: 13px;
+  user-select: none;
+}
+
+.login-lembrar input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  accent-color: #F9678C;
+  cursor: pointer;
+}
+
+.login-error {
+  background: rgba(220, 38, 38, 0.2);
+  border: 1px solid rgba(220, 38, 38, 0.4);
+  color: #fca5a5;
+  padding: 10px 14px;
+  border-radius: 8px;
+  margin-bottom: 16px;
+  font-size: 13px;
+  text-align: center;
+}
+
+/* ===== RESPONSIVO ===== */
+
+/* Quando branding e card começam a sobrepor */
+@media (max-width: 960px) {
+  /* Esconder branding desktop */
+  .login-branding {
+    display: none;
+  }
+
+  /* Mostrar branding compacto */
+  .login-branding-compact {
+    display: flex;
+  }
+
+  /* Mudar layout para coluna centralizada */
+  .login-page {
+    flex-direction: column;
+  }
+
+  /* Card centralizado */
+  .login-card {
+    position: relative;
+    right: auto;
+    top: auto;
+    transform: none;
+    width: 340px;
+    min-width: unset;
+  }
+}
+
+/* Mobile */
+@media (max-width: 575px) {
+  .login-card {
+    width: 88%;
+    max-width: 340px;
+    padding: 30px 24px 28px;
+  }
+
+  .login-logo-compact {
+    width: 150px;
+  }
+
+  .login-branding-compact {
+    margin-top: 20px;
+  }
+}

@@ -33,8 +33,7 @@ const TableColaboradores = ({ colaboradores, selecionados, onToggle, valores, on
             </th>
             <th>Nome</th>
             <th>CPF</th>
-            <th>Cargo</th>
-            <th className="align-right" style={{ width: '140px' }}>Valor (R$)</th>
+            <th className="align-right" style={{ width: '140px' }}>Valor Bruto (R$)</th>
           </tr>
         </thead>
         <tbody>
@@ -49,7 +48,6 @@ const TableColaboradores = ({ colaboradores, selecionados, onToggle, valores, on
               </td>
               <td>{colab.nome}</td>
               <td>{mascaraCPF(colab.cpf)}</td>
-              <td>{colab.cargo || '-'}</td>
               <td className="align-right">
                 <input
                   type="number"

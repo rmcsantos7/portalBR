@@ -20,18 +20,19 @@ const logger = require('../utils/logger');
  * @param {string} login - Login do usuário que criou
  * @returns {Promise<number>} ID da remessa criada
  */
-const criarRemessa = async (client, clienteId, login) => {
+const criarRemessa = async (client, clienteId, login, titulo = null) => {
   const sql = `
     INSERT INTO crd_usuario_credito_remessa (
       crd_usu_data_import,
       crd_usu_login,
-      crd_cli_id
-    ) VALUES (CURRENT_DATE, $1, $2)
+      crd_cli_id,
+      crd_usucrerem_titulo
+    ) VALUES (CURRENT_TIMESTAMP, $1, $2, $3)
     RETURNING crd_usucrerem_id
   `;
 
   try {
-    const result = await client.query(sql, [login, clienteId]);
+    const result = await client.query(sql, [login, clienteId, titulo]);
     const id = result.rows[0].crd_usucrerem_id;
     logger.info('Remessa criada:', { remessaId: id, clienteId });
     return id;
@@ -108,10 +109,14 @@ const buscarHistorico = async (clienteId, limit = 50, offset = 0, dataInicio = n
       r.crd_usucrerem_id AS remessa_id,
       r.crd_usu_data_import AS data_criacao,
       r.crd_usu_login AS criado_por,
+      cli.crd_cli_nome_fantasia AS restaurante,
+      COALESCE(cli.crd_cli_manutencao_usuario, 0) AS taxa,
+      r.crd_usucrerem_titulo AS titulo,
       COUNT(c.crd_usucre_id) AS total_colaboradores,
-      COALESCE(SUM(c.crd_usu_valor), 0) AS valor_total
+      COALESCE(SUM(c.crd_usu_valor), 0) AS valor_bruto
     FROM crd_usuario_credito_remessa r
     LEFT JOIN crd_usuario_credito c ON c.crd_usucrerem_id = r.crd_usucrerem_id
+    INNER JOIN crd_cliente cli ON cli.crd_cli_id = r.crd_cli_id
     WHERE r.crd_cli_id = $1
   `;
 
@@ -131,8 +136,8 @@ const buscarHistorico = async (clienteId, limit = 50, offset = 0, dataInicio = n
   }
 
   sql += `
-    GROUP BY r.crd_usucrerem_id, r.crd_usu_data_import, r.crd_usu_login
-    ORDER BY r.crd_usu_data_import DESC
+    GROUP BY r.crd_usucrerem_id, r.crd_usu_data_import, r.crd_usu_login, cli.crd_cli_nome_fantasia, cli.crd_cli_manutencao_usuario, r.crd_usucrerem_titulo
+    ORDER BY r.crd_usucrerem_id DESC
     LIMIT $${paramCount} OFFSET $${paramCount + 1}
   `;
 
@@ -191,12 +196,17 @@ const buscarDetalheRemessa = async (remessaId, clienteId) => {
       u.crd_usr_id AS colaborador_id,
       u.crd_usr_nome AS nome,
       u.crd_usr_cpf AS cpf,
-      COALESCE(st.crd_set_setor, 'Sem cargo') AS cargo,
-      c.crd_usu_valor AS valor,
-      c.crd_usu_data_credito AS data_credito
+      c.crd_usu_valor AS valor_bruto,
+      c.crd_usu_data_credito AS data_credito,
+      COALESCE(cli.crd_cli_manutencao_usuario, 0) AS taxa,
+      r.crd_usu_login AS criado_por,
+      r.crd_usu_data_import AS data_criacao,
+      cli.crd_cli_nome_fantasia AS restaurante,
+      r.crd_usucrerem_titulo AS titulo
     FROM crd_usuario_credito c
     INNER JOIN crd_usuario u ON u.crd_usr_id = c.crd_usr_id
-    LEFT JOIN crd_cliente_setor st ON st.crd_set_id = u.crd_set_id
+    INNER JOIN crd_cliente cli ON cli.crd_cli_id = c.crd_cli_id
+    INNER JOIN crd_usuario_credito_remessa r ON r.crd_usucrerem_id = c.crd_usucrerem_id
     WHERE c.crd_usucrerem_id = $1
       AND c.crd_cli_id = $2
     ORDER BY u.crd_usr_nome ASC

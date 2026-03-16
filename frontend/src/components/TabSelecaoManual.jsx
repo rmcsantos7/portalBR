@@ -36,7 +36,7 @@ const TabSelecaoManual = ({ clienteId, colaboradoresHook, onProximo }) => {
   }, []);
 
   /**
-   * Filtra por setor/cargo (imediato, sem debounce)
+   * Filtra por setor/categoria (imediato, sem debounce)
    */
   const handleSetor = (valor) => {
     setSetorId(valor);
@@ -102,7 +102,7 @@ const TabSelecaoManual = ({ clienteId, colaboradoresHook, onProximo }) => {
       id: colab.id,
       nome: colab.nome,
       cpf: colab.cpf,
-      cargo: colab.cargo,
+      categoria: colab.categoria,
       valor: valores[colab.id] || ''
     }));
 
@@ -122,7 +122,7 @@ const TabSelecaoManual = ({ clienteId, colaboradoresHook, onProximo }) => {
 
         {colaboradoresHook.setores && colaboradoresHook.setores.length > 0 && (
           <div className="filtro-grupo">
-            <label>Cargo/Setor:</label>
+            <label>Categoria:</label>
             <select
               value={setorId}
               onChange={(e) => handleSetor(e.target.value)}

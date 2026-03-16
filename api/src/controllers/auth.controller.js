@@ -1,0 +1,62 @@
+/**
+ * Controller de Autenticação
+ */
+
+const authService = require('../services/auth.service');
+const { asyncHandler } = require('../middlewares/errorHandler');
+
+/**
+ * POST /api/auth/login
+ */
+const login = asyncHandler(async (req, res) => {
+  const { login: loginUsuario, senha } = req.body;
+  const resultado = await authService.login(loginUsuario, senha);
+  return res.status(200).json(resultado);
+});
+
+/**
+ * GET /api/auth/me
+ * Retorna dados do usuário logado (do token)
+ */
+const me = asyncHandler(async (req, res) => {
+  return res.status(200).json({
+    success: true,
+    data: {
+      usuario: {
+        usr_codigo: req.usuario.codigo,
+        usr_login: req.usuario.login,
+        usr_nome: req.usuario.nome,
+        crd_cli_id: req.usuario.cliente_id,
+        cliente_nome: req.usuario.cliente_nome,
+        cliente_cnpj: req.usuario.cliente_cnpj,
+        usr_administrador: req.usuario.administrador ? 'S' : 'N'
+      }
+    }
+  });
+});
+
+/**
+ * POST /api/auth/recuperar-senha
+ */
+const recuperarSenha = asyncHandler(async (req, res) => {
+  const { email } = req.body;
+  const resultado = await authService.recuperarSenha(email);
+  return res.status(200).json(resultado);
+});
+
+/**
+ * POST /api/auth/trocar-senha
+ * Troca de senha (obrigatória após senha temporária)
+ */
+const trocarSenha = asyncHandler(async (req, res) => {
+  const { senha_atual, nova_senha } = req.body;
+  const resultado = await authService.trocarSenha(req.usuario.codigo, senha_atual, nova_senha);
+  return res.status(200).json(resultado);
+});
+
+module.exports = {
+  login,
+  me,
+  recuperarSenha,
+  trocarSenha
+};

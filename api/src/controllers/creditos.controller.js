@@ -16,7 +16,7 @@ const logger = require('../utils/logger');
  * Se aplicar_mesmo_valor = true, usar valor_uniforme para todos
  */
 const gerarCredito = asyncHandler(async (req, res) => {
-  const { cliente_id } = req.query;
+  const { cliente_id, login } = req.query;
   const payload = req.body;
 
   const clienteId = extractClienteId(cliente_id);
@@ -24,19 +24,22 @@ const gerarCredito = asyncHandler(async (req, res) => {
     throw new APIError('cliente_id inválido ou não fornecido', 400, { campo: 'cliente_id' });
   }
 
+  // Login vem da URL (passado pelo sistema legado)
+  const loginUsuario = login || req.user?.email || 'sistema';
+
   // Valida payload
   const payloadValidado = creditosService.validarPayloadCredito(payload, clienteId);
 
   // Gera crédito (com transação, replica lógica MKF)
   const resultado = await creditosService.gerarCredito(
     payloadValidado,
-    req.user?.email || 'sistema'
+    loginUsuario
   );
 
   logger.info('Crédito gerado via API:', {
     clienteId,
-    totalColaboradores: payloadValidado.colaboradores.length,
-    aplicarMesmoValor: payloadValidado.aplicar_mesmo_valor
+    login: loginUsuario,
+    totalColaboradores: payloadValidado.colaboradores.length
   });
 
   return res.status(201).json(resultado);

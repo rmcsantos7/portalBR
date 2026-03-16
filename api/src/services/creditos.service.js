@@ -7,7 +7,7 @@
  * - Credito: (crd_usr_id, crd_pro_id=999, crd_usu_valor, crd_usu_data_credito,
  *             crd_usucre_cpf, crd_cli_id, crd_usu_login, crd_usu_data_import,
  *             crd_usucrerem_id, crd_sit_id=1)
- * - SEM cálculo de taxa — valor inserido é o valor armazenado
+ * - COM desconto de taxa (crd_cli_manutencao_usuario) sobre o valor inserido
  */
 
 const creditosRepository = require('../repositories/creditos.repository');
@@ -24,7 +24,7 @@ const db = require('../config/database');
  * @returns {object} Payload validado
  */
 const validarPayloadCredito = (payload, clienteId) => {
-  const { colaboradores, aplicar_mesmo_valor, valor_uniforme } = payload;
+  const { colaboradores } = payload;
 
   // Validação de colaboradores
   if (!Array.isArray(colaboradores) || colaboradores.length === 0) {
@@ -33,13 +33,6 @@ const validarPayloadCredito = (payload, clienteId) => {
 
   if (colaboradores.length > 5000) {
     throw new APIError('Máximo 5000 colaboradores permitidos', 400, { campo: 'colaboradores' });
-  }
-
-  // Se aplicar_mesmo_valor, valida valor_uniforme
-  if (aplicar_mesmo_valor) {
-    if (!isValidPositiveNumber(valor_uniforme, 1000000)) {
-      throw new APIError('Valor uniforme inválido ou excede o limite', 400, { campo: 'valor_uniforme' });
-    }
   }
 
   // Detecta modo: por ID (seleção manual) ou por CPF (importação Excel)
@@ -60,20 +53,20 @@ const validarPayloadCredito = (payload, clienteId) => {
       }
     }
 
-    // Se não é valor uniforme, cada colaborador precisa de valor
-    if (!aplicar_mesmo_valor) {
-      if (!isValidPositiveNumber(colab.valor, 1000000)) {
-        throw new APIError(`Colaborador ${index + 1}: Valor inválido ou excede o limite`, 400);
-      }
+    // Cada colaborador precisa de valor
+    if (!isValidPositiveNumber(colab.valor, 1000000)) {
+      throw new APIError(`Colaborador ${index + 1}: Valor inválido ou excede o limite`, 400);
     }
   });
 
+  // Título da recarga (opcional, máx 40 chars)
+  const titulo = payload.titulo ? String(payload.titulo).trim().substring(0, 40) : null;
+
   return {
     colaboradores,
-    aplicar_mesmo_valor: aplicar_mesmo_valor || false,
-    valor_uniforme: aplicar_mesmo_valor ? parseFloat(valor_uniforme) : null,
     clienteId,
-    modoCpf
+    modoCpf,
+    titulo
   };
 };
 
@@ -90,7 +83,7 @@ const validarPayloadCredito = (payload, clienteId) => {
  * @returns {Promise<object>} Resultado da geração
  */
 const gerarCredito = async (payload, login = 'sistema') => {
-  const { colaboradores, aplicar_mesmo_valor, valor_uniforme, clienteId, modoCpf } = payload;
+  const { colaboradores, clienteId, modoCpf, titulo } = payload;
   const client = await db.getClient();
 
   try {
@@ -109,7 +102,7 @@ const gerarCredito = async (payload, login = 'sistema') => {
     }
 
     // 2. Cria registro de remessa (ID gerado automaticamente pela sequence)
-    const remessaId = await creditosRepository.criarRemessa(client, clienteId, login);
+    const remessaId = await creditosRepository.criarRemessa(client, clienteId, login, titulo);
 
     // 3. Processa cada colaborador — valor direto, sem cálculo de taxa
     let valorTotal = 0;
@@ -139,10 +132,8 @@ const gerarCredito = async (payload, login = 'sistema') => {
         continue;
       }
 
-      // Valor: individual ou uniforme
-      const valor = aplicar_mesmo_valor
-        ? valor_uniforme
-        : parseFloat(colab.valor);
+      // Valor informado pelo usuário (bruto — gravado direto, sem desconto)
+      const valor = parseFloat(colab.valor);
 
       if (!valor || valor <= 0) {
         ignorados.push({ id: colabDB.id, motivo: 'valor<=0' });
@@ -152,7 +143,7 @@ const gerarCredito = async (payload, login = 'sistema') => {
       // CPF do colaborador (limpo, como no MKF)
       const cpf = (colabDB.cpf || '').replace(/[.\-]/g, '').padStart(11, '0');
 
-      // Insere crédito individual (replica MKF exatamente)
+      // Insere crédito individual com valor bruto (sem desconto)
       const creditoId = await creditosRepository.inserirCredito(
         client,
         colabDB.id,
@@ -270,12 +261,45 @@ const obterDetalheRemessa = async (remessaId, clienteId) => {
   try {
     const detalhes = await creditosRepository.buscarDetalheRemessa(remessaId, clienteId);
 
+    const taxa = detalhes.length > 0 ? parseFloat(detalhes[0].taxa) || 0 : 0;
+    const meta = detalhes.length > 0 ? {
+      criado_por: detalhes[0].criado_por,
+      data_criacao: detalhes[0].data_criacao,
+      restaurante: detalhes[0].restaurante,
+      titulo: detalhes[0].titulo || null
+    } : {};
+
+    // Valor no banco = bruto (o que o usuário digitou)
+    // Líquido = bruto - (bruto * taxa / 100)
+    const colaboradores = detalhes.map(d => {
+      const valorBruto = parseFloat(d.valor_bruto) || 0;
+      const valorLiquido = taxa > 0
+        ? Math.round((valorBruto - (valorBruto * taxa / 100)) * 100) / 100
+        : valorBruto;
+      return {
+        credito_id: d.credito_id,
+        colaborador_id: d.colaborador_id,
+        nome: d.nome,
+        cpf: d.cpf,
+        valor_bruto: valorBruto,
+        valor_liquido: valorLiquido,
+        data_credito: d.data_credito
+      };
+    });
+
+    const totalBruto = colaboradores.reduce((s, c) => s + c.valor_bruto, 0);
+    const totalLiquido = colaboradores.reduce((s, c) => s + c.valor_liquido, 0);
+
     return {
       success: true,
       data: {
         remessa_id: remessaId,
-        total_colaboradores: detalhes.length,
-        colaboradores: detalhes
+        taxa,
+        ...meta,
+        total_colaboradores: colaboradores.length,
+        valor_bruto: Math.round(totalBruto * 100) / 100,
+        valor_liquido: Math.round(totalLiquido * 100) / 100,
+        colaboradores
       }
     };
   } catch (error) {

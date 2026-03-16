@@ -5,88 +5,71 @@
 
 import axios from 'axios';
 
-const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:3001/api';
+const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:3999/api';
 
-// Cria instância do axios com configurações padrão
 const api = axios.create({
   baseURL: API_URL,
   timeout: 30000,
-  headers: {
-    'Content-Type': 'application/json'
-  }
+  headers: { 'Content-Type': 'application/json' }
 });
 
-// Interceptor para adicionar token de autenticação (se disponível)
+// Helper: busca token em sessionStorage ou localStorage
+const getToken = () => {
+  return sessionStorage.getItem('auth_token') || localStorage.getItem('auth_token');
+};
+
+const removeToken = () => {
+  localStorage.removeItem('auth_token');
+  sessionStorage.removeItem('auth_token');
+};
+
 api.interceptors.request.use(
   (config) => {
-    const token = localStorage.getItem('auth_token');
-    if (token) {
-      config.headers.Authorization = `Bearer ${token}`;
-    }
+    const token = getToken();
+    if (token) config.headers.Authorization = `Bearer ${token}`;
     return config;
   },
   (error) => Promise.reject(error)
 );
 
-// Interceptor para tratamento de erros
 api.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error.response?.status === 401) {
-      // Redirecionar para login se não autenticado
-      localStorage.removeItem('auth_token');
-      window.location.href = '/login';
+      removeToken();
+      // Disparar evento customizado em vez de hard reload
+      window.dispatchEvent(new CustomEvent('auth:logout'));
     }
     return Promise.reject(error);
   }
 );
 
 /**
- * Colaboradores API
+ * Colaboradores API (para tela de Créditos)
  */
 export const colaboradoresAPI = {
-  /**
-   * Lista colaboradores com filtros
-   */
   listar: (clienteId, params = {}) => {
-    return api.get('/colaboradores', {
-      params: {
-        cliente_id: clienteId,
-        ...params
-      }
-    });
+    return api.get('/colaboradores', { params: { cliente_id: clienteId, ...params } });
   },
-
-  /**
-   * Obtém setores/cargos disponíveis
-   */
   obterSetores: (clienteId) => {
-    return api.get('/colaboradores/setores', {
-      params: { cliente_id: clienteId }
-    });
+    return api.get('/colaboradores/setores', { params: { cliente_id: clienteId } });
   },
-
-  /**
-   * Importa arquivo Excel
-   */
   importarExcel: (clienteId, file) => {
     const formData = new FormData();
     formData.append('file', file);
-
     return api.post('/colaboradores/import', formData, {
       params: { cliente_id: clienteId },
       headers: { 'Content-Type': 'multipart/form-data' }
     });
   },
-
-  /**
-   * Baixa planilha padrão com colaboradores ativos
-   */
   baixarPlanilha: (clienteId) => {
     return api.get('/colaboradores/planilha', {
       params: { cliente_id: clienteId },
       responseType: 'blob'
     });
+  },
+  obterTaxa: (clienteId) => {
+    return api.get('/colaboradores/taxa', { params: { cliente_id: clienteId } });
   }
 };
 
@@ -94,24 +77,121 @@ export const colaboradoresAPI = {
  * Créditos API
  */
 export const creditosAPI = {
-  /**
-   * Gera crédito para colaboradores
-   */
-  gerar: (clienteId, payload) => {
+  gerar: (clienteId, payload, login = 'sistema') => {
     return api.post('/creditos/gerar', payload, {
+      params: { cliente_id: clienteId, login }
+    });
+  },
+  obterHistorico: (clienteId, params = {}) => {
+    return api.get('/creditos/historico', {
+      params: { cliente_id: clienteId, ...params }
+    });
+  },
+  obterDetalheRemessa: (clienteId, remessaId) => {
+    return api.get(`/creditos/remessa/${remessaId}`, {
+      params: { cliente_id: clienteId }
+    });
+  }
+};
+
+/**
+ * Gestão de Colaboradores API (para tela de Colaboradores CRUD)
+ */
+export const gestaoColaboradoresAPI = {
+  /** Lista todos (ativos + inativos) */
+  listarTodos: (clienteId, search = '') => {
+    return api.get('/colaboradores/todos', {
+      params: { cliente_id: clienteId, search, limit: 500 }
+    });
+  },
+
+  /** Obtém dados completos de um colaborador */
+  obterColaborador: (clienteId, userId) => {
+    return api.get(`/colaboradores/${userId}`, {
       params: { cliente_id: clienteId }
     });
   },
 
-  /**
-   * Obtém histórico de gerações
-   */
-  obterHistorico: (clienteId, params = {}) => {
-    return api.get('/creditos/historico', {
-      params: {
-        cliente_id: clienteId,
-        ...params
-      }
+  /** Cria novo colaborador */
+  criar: (dados) => {
+    return api.post('/colaboradores/criar', dados);
+  },
+
+  /** Atualiza colaborador existente */
+  atualizar: (clienteId, userId, dados) => {
+    return api.put(`/colaboradores/${userId}`, dados, {
+      params: { cliente_id: clienteId }
+    });
+  },
+
+  /** Altera situação (Ativar/Inativar) */
+  alterarSituacao: (clienteId, userId, situacaoId) => {
+    return api.patch(`/colaboradores/${userId}/situacao`, { situacao_id: situacaoId }, {
+      params: { cliente_id: clienteId }
+    });
+  },
+
+  /** Lista restaurantes filtrados por cliente */
+  obterRestaurantes: (clienteId) => {
+    return api.get('/colaboradores/restaurantes', { params: { cliente_id: clienteId } });
+  },
+
+  /** Busca setores/categorias de um cliente */
+  obterSetores: (clienteId) => {
+    return api.get('/colaboradores/setores', { params: { cliente_id: clienteId } });
+  },
+
+  /** Cria nova categoria */
+  criarCategoria: (clienteId, nome) => {
+    return api.post('/colaboradores/categorias', { nome }, { params: { cliente_id: clienteId } });
+  },
+
+  /** Deleta uma categoria */
+  deletarCategoria: (clienteId, categoriaId) => {
+    return api.delete(`/colaboradores/categorias/${categoriaId}`, { params: { cliente_id: clienteId } });
+  },
+
+  /** Baixa planilha padrão para importação de colaboradores */
+  baixarPlanilhaUsuarios: (clienteId) => {
+    return api.get('/colaboradores/planilha-usuarios', {
+      params: { cliente_id: clienteId },
+      responseType: 'blob'
+    });
+  },
+
+  /** Importa colaboradores via Excel */
+  importarUsuarios: (clienteId, file) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    return api.post('/colaboradores/import-usuarios', formData, {
+      params: { cliente_id: clienteId },
+      headers: { 'Content-Type': 'multipart/form-data' }
+    });
+  }
+};
+
+/**
+ * Relatórios API
+ */
+export const relatoriosAPI = {
+  recargasPeriodo: (clienteId, dataInicio, dataFim) => {
+    return api.get('/relatorios/recargas-periodo', {
+      params: { cliente_id: clienteId, data_inicio: dataInicio, data_fim: dataFim }
+    });
+  },
+  colaboradores: (clienteId) => {
+    return api.get('/relatorios/colaboradores', {
+      params: { cliente_id: clienteId }
+    });
+  },
+  historicoColaborador: (clienteId, colaboradorId, dataInicio, dataFim) => {
+    return api.get(`/relatorios/historico-colaborador/${colaboradorId}`, {
+      params: { cliente_id: clienteId, data_inicio: dataInicio, data_fim: dataFim }
+    });
+  },
+  listarColaboradores: (clienteId, search = '') => {
+    return api.get('/relatorios/colaboradores-lista', {
+      params: { cliente_id: clienteId, search }
     });
   }
 };

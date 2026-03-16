@@ -1,12 +1,23 @@
 /**
  * Componente: PreviewCredito
  * Preview e confirmação de geração de crédito
- * Valores são editáveis diretamente na tabela
+ * Mostra valor bruto, desconto da taxa e valor líquido por colaborador
  */
 
 import React, { useState } from 'react';
 
-const PreviewCredito = ({ clienteId, colaboradores: colaboradoresIniciais, onVoltar, onSucesso, creditoHook }) => {
+const PreviewCredito = ({ clienteId, colaboradores: colaboradoresIniciais, onVoltar, onSucesso, creditoHook, taxa = 0 }) => {
+  /**
+   * Formata CPF com máscara 000.000.000-00
+   */
+  const formatarCPF = (cpf) => {
+    if (!cpf) return '-';
+    const limpo = cpf.replace(/\D/g, '');
+    if (limpo.length === 11) {
+      return limpo.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4');
+    }
+    return cpf;
+  };
   // Estado local com valores editáveis por colaborador
   const [colaboradores, setColaboradores] = useState(
     colaboradoresIniciais.map(c => ({
@@ -17,8 +28,7 @@ const PreviewCredito = ({ clienteId, colaboradores: colaboradoresIniciais, onVol
     }))
   );
 
-  const [valorUniforme, setValorUniforme] = useState('');
-  const [mesmoValor, setMesmoValor] = useState(false);
+  const [tituloRecarga, setTituloRecarga] = useState('');
   const [sucesso, setSucesso] = useState(null);
 
   /**
@@ -31,31 +41,33 @@ const PreviewCredito = ({ clienteId, colaboradores: colaboradoresIniciais, onVol
   };
 
   /**
-   * Aplica valor uniforme a todos
+   * Calcula valor líquido após desconto da taxa
    */
-  const aplicarValorUniforme = (valor) => {
-    setValorUniforme(valor);
-    if (mesmoValor) {
-      setColaboradores(prev => prev.map(c => ({ ...c, valor })));
+  const calcularLiquido = (valorBruto) => {
+    const v = parseFloat(valorBruto) || 0;
+    if (taxa > 0) {
+      return Math.round((v - (v * taxa / 100)) * 100) / 100;
     }
+    return v;
   };
 
   /**
-   * Toggle mesmo valor
+   * Calcula desconto da taxa
    */
-  const handleMesmoValor = (checked) => {
-    setMesmoValor(checked);
-    if (checked && valorUniforme) {
-      setColaboradores(prev => prev.map(c => ({ ...c, valor: valorUniforme })));
+  const calcularDesconto = (valorBruto) => {
+    const v = parseFloat(valorBruto) || 0;
+    if (taxa > 0) {
+      return Math.round((v * taxa / 100) * 100) / 100;
     }
+    return 0;
   };
 
   /**
-   * Calcula valor total
+   * Calcula totais
    */
-  const calcularTotal = () => {
-    return colaboradores.reduce((acc, c) => acc + (parseFloat(c.valor) || 0), 0);
-  };
+  const totalBruto = colaboradores.reduce((acc, c) => acc + (parseFloat(c.valor) || 0), 0);
+  const totalDesconto = colaboradores.reduce((acc, c) => acc + calcularDesconto(c.valor), 0);
+  const totalLiquido = colaboradores.reduce((acc, c) => acc + calcularLiquido(c.valor), 0);
 
   /**
    * Gera crédito
@@ -72,21 +84,23 @@ const PreviewCredito = ({ clienteId, colaboradores: colaboradoresIniciais, onVol
     creditoHook.limparErro();
 
     const payload = {
+      titulo: tituloRecarga.trim() || null,
       colaboradores: colaboradores.map(c => ({
         id: c.id || 0,
         cpf: c.cpf || '',
         nome: c.nome || '',
         valor: parseFloat(c.valor)
       })),
-      aplicar_mesmo_valor: mesmoValor
     };
 
     const dados = await creditoHook.gerar(payload);
     if (dados) {
-      // Mostra mensagem de sucesso com dados do retorno da API
       setSucesso({
         total_inseridos: dados.total_inseridos || colaboradores.length,
-        valor_total: dados.valor_total || calcularTotal(),
+        valor_total: dados.valor_total || totalLiquido,
+        valor_bruto: totalBruto,
+        valor_desconto: totalDesconto,
+        valor_liquido: totalLiquido,
         remessa_id: dados.remessa_id || null
       });
     }
@@ -101,10 +115,9 @@ const PreviewCredito = ({ clienteId, colaboradores: colaboradoresIniciais, onVol
     onSucesso();
   };
 
-  const total = calcularTotal();
   const todosPreenchidos = colaboradores.every(c => c.valor && parseFloat(c.valor) > 0);
 
-  // Modal de sucesso
+  // Tela de sucesso
   if (sucesso) {
     return (
       <div className="preview-credito">
@@ -115,7 +128,6 @@ const PreviewCredito = ({ clienteId, colaboradores: colaboradoresIniciais, onVol
           padding: '40px 20px',
           textAlign: 'center'
         }}>
-          {/* Ícone de sucesso */}
           <div style={{
             width: '72px',
             height: '72px',
@@ -132,27 +144,21 @@ const PreviewCredito = ({ clienteId, colaboradores: colaboradoresIniciais, onVol
           </div>
 
           <h3 style={{ margin: '0 0 8px', fontSize: '1.3rem', color: '#111827' }}>
-            Crédito gerado com sucesso!
+            Recarga gerada com sucesso!
           </h3>
 
           <p style={{ margin: '0 0 24px', color: '#6b7280', fontSize: '0.9rem' }}>
-            Os créditos foram inseridos no sistema.
+            A recarga foi inserida no sistema.
           </p>
 
-          {/* Detalhes */}
           <div style={{
             display: 'flex',
-            gap: '24px',
+            gap: '16px',
             justifyContent: 'center',
             flexWrap: 'wrap',
             marginBottom: '32px'
           }}>
-            <div style={{
-              background: '#f3f4f6',
-              borderRadius: '10px',
-              padding: '16px 24px',
-              minWidth: '140px'
-            }}>
+            <div style={{ background: '#f3f4f6', borderRadius: '10px', padding: '16px 24px', minWidth: '120px' }}>
               <div style={{ fontSize: '0.75rem', color: '#6b7280', marginBottom: '4px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
                 Registros
               </div>
@@ -161,27 +167,8 @@ const PreviewCredito = ({ clienteId, colaboradores: colaboradoresIniciais, onVol
               </div>
             </div>
 
-            <div style={{
-              background: '#f3f4f6',
-              borderRadius: '10px',
-              padding: '16px 24px',
-              minWidth: '140px'
-            }}>
-              <div style={{ fontSize: '0.75rem', color: '#6b7280', marginBottom: '4px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                Valor Total
-              </div>
-              <div style={{ fontSize: '1.5rem', fontWeight: '700', color: '#4A1D4F' }}>
-                R$ {(sucesso.valor_total || total).toFixed(2)}
-              </div>
-            </div>
-
             {sucesso.remessa_id && (
-              <div style={{
-                background: '#f3f4f6',
-                borderRadius: '10px',
-                padding: '16px 24px',
-                minWidth: '140px'
-              }}>
+              <div style={{ background: '#f3f4f6', borderRadius: '10px', padding: '16px 24px', minWidth: '120px' }}>
                 <div style={{ fontSize: '0.75rem', color: '#6b7280', marginBottom: '4px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
                   ID da Remessa
                 </div>
@@ -190,9 +177,39 @@ const PreviewCredito = ({ clienteId, colaboradores: colaboradoresIniciais, onVol
                 </div>
               </div>
             )}
+
+            <div style={{ background: '#f3f4f6', borderRadius: '10px', padding: '16px 24px', minWidth: '120px' }}>
+              <div style={{ fontSize: '0.75rem', color: '#6b7280', marginBottom: '4px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                Valor Bruto
+              </div>
+              <div style={{ fontSize: '1.5rem', fontWeight: '700', color: '#374151' }}>
+                R$ {sucesso.valor_bruto.toFixed(2)}
+              </div>
+            </div>
+
+            {taxa > 0 && (
+              <>
+                <div style={{ background: '#fef2f2', borderRadius: '10px', padding: '16px 24px', minWidth: '120px' }}>
+                  <div style={{ fontSize: '0.75rem', color: '#dc2626', marginBottom: '4px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                    Tar. Conv. ({taxa}%)
+                  </div>
+                  <div style={{ fontSize: '1.5rem', fontWeight: '700', color: '#dc2626' }}>
+                    - R$ {sucesso.valor_desconto.toFixed(2)}
+                  </div>
+                </div>
+              </>
+            )}
+
+            <div style={{ background: '#f0fdf4', borderRadius: '10px', padding: '16px 24px', minWidth: '120px' }}>
+              <div style={{ fontSize: '0.75rem', color: '#059669', marginBottom: '4px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                Valor Líquido
+              </div>
+              <div style={{ fontSize: '1.5rem', fontWeight: '700', color: '#4A1D4F' }}>
+                R$ {sucesso.valor_liquido.toFixed(2)}
+              </div>
+            </div>
           </div>
 
-          {/* Botão fechar */}
           <button
             className="btn-primario"
             onClick={handleFecharSucesso}
@@ -214,33 +231,56 @@ const PreviewCredito = ({ clienteId, colaboradores: colaboradoresIniciais, onVol
         </div>
       )}
 
-      {/* Valor uniforme */}
-      <div className="secao" style={{ padding: '16px' }}>
-        <div className="grupo-form checkbox" style={{ margin: 0 }}>
-          <input
-            type="checkbox"
-            id="mesmoValor"
-            checked={mesmoValor}
-            onChange={(e) => handleMesmoValor(e.target.checked)}
-            disabled={creditoHook.creditoLoading}
-          />
-          <label htmlFor="mesmoValor">Aplicar mesmo valor para todos</label>
+      {/* Info da taxa */}
+      {taxa > 0 && (
+        <div style={{
+          padding: '10px 16px',
+          background: '#fef3c7',
+          border: '1px solid #fcd34d',
+          borderRadius: '8px',
+          marginBottom: '12px',
+          fontSize: '0.85rem',
+          color: '#92400e'
+        }}>
+          Tarifa convênio aplicada: <strong>{taxa}%</strong>
         </div>
+      )}
 
-        {mesmoValor && (
-          <div className="grupo-form" style={{ marginTop: '12px', marginBottom: 0, maxWidth: '250px' }}>
-            <label>Valor (R$):</label>
-            <input
-              type="number"
-              min="0"
-              step="0.01"
-              placeholder="0.00"
-              value={valorUniforme}
-              onChange={(e) => aplicarValorUniforme(e.target.value)}
-              disabled={creditoHook.creditoLoading}
-            />
-          </div>
-        )}
+      {/* Legenda */}
+      {taxa > 0 && (
+        <div style={{
+          padding: '8px 14px',
+          background: '#f9fafb',
+          border: '1px solid var(--cinza-300)',
+          borderRadius: '8px',
+          marginBottom: '12px',
+          fontSize: '0.78rem',
+          color: 'var(--cinza-600)',
+          lineHeight: '1.6'
+        }}>
+          <strong>Valor Bruto:</strong> corresponde ao valor final apresentado no boleto. &nbsp;|&nbsp;
+          <strong>Tarifa Convênio:</strong> valor definido conforme acordo coletivo. &nbsp;|&nbsp;
+          <strong>Valor Líquido:</strong> valor que será distribuído entre os colaboradores.
+        </div>
+      )}
+
+      {/* Título da recarga */}
+      <div style={{ marginBottom: '16px' }}>
+        <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: '600', color: 'var(--cinza-700)', marginBottom: '6px' }}>
+          Título da recarga <span style={{ fontWeight: '400', color: 'var(--cinza-500)' }}>(opcional, máx. 40 caracteres)</span>
+        </label>
+        <input
+          type="text"
+          maxLength={40}
+          placeholder="Ex: Recarga mensal março"
+          value={tituloRecarga}
+          onChange={(e) => setTituloRecarga(e.target.value)}
+          disabled={creditoHook.creditoLoading}
+          style={{ width: '100%', maxWidth: '400px', padding: '8px 12px', borderRadius: '8px', fontSize: '0.9rem' }}
+        />
+        <div style={{ fontSize: '0.72rem', color: 'var(--cinza-500)', marginTop: '4px' }}>
+          {tituloRecarga.length}/40
+        </div>
       </div>
 
       {/* Tabela de Colaboradores com valores editáveis */}
@@ -251,36 +291,56 @@ const PreviewCredito = ({ clienteId, colaboradores: colaboradoresIniciais, onVol
               <th style={{ width: '40px' }}>#</th>
               <th>Nome</th>
               <th>CPF</th>
-              <th>Cargo</th>
-              <th className="align-right" style={{ width: '150px' }}>Valor (R$)</th>
+              <th className="align-right" style={{ width: '130px' }}>Valor Bruto (R$)</th>
+              {taxa > 0 && (
+                <>
+                  <th className="align-right" style={{ width: '110px' }}>Tar. Conv.</th>
+                  <th className="align-right" style={{ width: '110px' }}>Líquido</th>
+                </>
+              )}
             </tr>
           </thead>
           <tbody>
-            {colaboradores.map((colab, idx) => (
-              <tr key={idx}>
-                <td>{idx + 1}</td>
-                <td>{colab.nome}</td>
-                <td>{colab.cpf?.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4')}</td>
-                <td>{colab.cargo || '-'}</td>
-                <td className="align-right">
-                  <input
-                    type="number"
-                    min="0"
-                    step="0.01"
-                    placeholder="0.00"
-                    value={colab.valor}
-                    onChange={(e) => handleValorChange(idx, e.target.value)}
-                    disabled={creditoHook.creditoLoading || mesmoValor}
-                    style={{
-                      width: '120px',
-                      textAlign: 'right',
-                      padding: '6px 8px',
-                      fontSize: '0.85rem'
-                    }}
-                  />
-                </td>
-              </tr>
-            ))}
+            {colaboradores.map((colab, idx) => {
+              const valorBruto = parseFloat(colab.valor) || 0;
+              const desconto = calcularDesconto(colab.valor);
+              const liquido = calcularLiquido(colab.valor);
+
+              return (
+                <tr key={idx}>
+                  <td>{idx + 1}</td>
+                  <td>{colab.nome}</td>
+                  <td style={{ fontFamily: 'monospace', fontSize: '0.85rem', color: 'var(--cinza-600)' }}>{formatarCPF(colab.cpf)}</td>
+                  <td className="align-right">
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      placeholder="0.00"
+                      value={colab.valor}
+                      onChange={(e) => handleValorChange(idx, e.target.value)}
+                      disabled={creditoHook.creditoLoading}
+                      style={{
+                        width: '110px',
+                        textAlign: 'right',
+                        padding: '6px 8px',
+                        fontSize: '0.85rem'
+                      }}
+                    />
+                  </td>
+                  {taxa > 0 && (
+                    <>
+                      <td className="align-right" style={{ color: '#dc2626', fontSize: '0.85rem' }}>
+                        {valorBruto > 0 ? `- ${desconto.toFixed(2)}` : '-'}
+                      </td>
+                      <td className="align-right" style={{ fontWeight: '600', fontSize: '0.85rem', color: '#059669' }}>
+                        {valorBruto > 0 ? liquido.toFixed(2) : '-'}
+                      </td>
+                    </>
+                  )}
+                </tr>
+              );
+            })}
           </tbody>
         </table>
 
@@ -293,7 +353,7 @@ const PreviewCredito = ({ clienteId, colaboradores: colaboradoresIniciais, onVol
 
       {/* Resumo */}
       <div className="secao resumo-final" style={{ padding: '16px' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
           <div>
             <span style={{ fontSize: '0.85rem', color: '#6b7280' }}>
               {colaboradores.length} colaborador(es)
@@ -304,10 +364,28 @@ const PreviewCredito = ({ clienteId, colaboradores: colaboradoresIniciais, onVol
               </span>
             )}
           </div>
-          <div style={{ textAlign: 'right' }}>
-            <span style={{ fontSize: '0.8rem', color: '#6b7280' }}>Valor Total</span>
-            <div style={{ fontSize: '1.3rem', fontWeight: '700', color: '#4A1D4F' }}>
-              R$ {total.toFixed(2)}
+          <div style={{ display: 'flex', gap: '24px', alignItems: 'center' }}>
+            {taxa > 0 && (
+              <>
+                <div style={{ textAlign: 'right' }}>
+                  <span style={{ fontSize: '0.75rem', color: '#6b7280' }}>Valor Total do Boleto</span>
+                  <div style={{ fontSize: '1.1rem', fontWeight: '700', color: '#374151' }}>
+                    {totalBruto.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                  </div>
+                </div>
+                <div style={{ textAlign: 'right' }}>
+                  <span style={{ fontSize: '0.75rem', color: '#dc2626' }}>Tar. Conv. ({taxa}%)</span>
+                  <div style={{ fontSize: '1rem', fontWeight: '600', color: '#dc2626' }}>
+                    - {totalDesconto.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                  </div>
+                </div>
+              </>
+            )}
+            <div style={{ textAlign: 'right' }}>
+              <span style={{ fontSize: '0.75rem', color: '#6b7280' }}>{taxa > 0 ? 'Valor Líquido' : 'Valor Total'}</span>
+              <div style={{ fontSize: '1.3rem', fontWeight: '700', color: '#4A1D4F' }}>
+                R$ {totalLiquido.toFixed(2)}
+              </div>
             </div>
           </div>
         </div>
@@ -316,10 +394,13 @@ const PreviewCredito = ({ clienteId, colaboradores: colaboradoresIniciais, onVol
       {/* Botões */}
       <div className="acoes">
         <button
-          className="btn-secundario"
+          className="btn-voltar"
           onClick={onVoltar}
           disabled={creditoHook.creditoLoading}
         >
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <polyline points="15 18 9 12 15 6" />
+          </svg>
           Voltar
         </button>
         <button
@@ -327,7 +408,7 @@ const PreviewCredito = ({ clienteId, colaboradores: colaboradoresIniciais, onVol
           onClick={handleGerar}
           disabled={creditoHook.creditoLoading || !todosPreenchidos}
         >
-          {creditoHook.creditoLoading ? 'Gerando...' : 'Gerar Crédito'}
+          {creditoHook.creditoLoading ? 'Gerando...' : 'Gerar Recarga'}
         </button>
       </div>
     </div>

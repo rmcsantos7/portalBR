@@ -24,16 +24,49 @@ const isValidPositiveNumber = (value, maxValue = 1000000) => {
 };
 
 /**
- * Valida CPF (formato básico)
- * @param {string} cpf - CPF a validar
+ * Valida CPF com cálculo dos dígitos verificadores
+ * @param {string} cpf - CPF a validar (com ou sem máscara)
  * @returns {boolean}
  */
 const isValidCPF = (cpf) => {
   if (!cpf) return false;
-  // Remove caracteres especiais
+  let cleaned = cpf.replace(/\D/g, '');
+  // Excel pode remover zeros à esquerda ao tratar CPF como número
+  if (cleaned.length > 0 && cleaned.length < 11) {
+    cleaned = cleaned.padStart(11, '0');
+  }
+  if (cleaned.length !== 11) return false;
+
+  // Rejeitar CPFs com todos os dígitos iguais (ex: 111.111.111-11)
+  if (/^(\d)\1{10}$/.test(cleaned)) return false;
+
+  // Cálculo do 1º dígito verificador
+  let soma = 0;
+  for (let i = 0; i < 9; i++) soma += parseInt(cleaned[i]) * (10 - i);
+  let resto = (soma * 10) % 11;
+  if (resto === 10) resto = 0;
+  if (resto !== parseInt(cleaned[9])) return false;
+
+  // Cálculo do 2º dígito verificador
+  soma = 0;
+  for (let i = 0; i < 10; i++) soma += parseInt(cleaned[i]) * (11 - i);
+  resto = (soma * 10) % 11;
+  if (resto === 10) resto = 0;
+  if (resto !== parseInt(cleaned[10])) return false;
+
+  return true;
+};
+
+/**
+ * Remove máscara de CPF, retornando apenas dígitos
+ * @param {string} cpf - CPF com ou sem máscara
+ * @returns {string}
+ */
+const limparCPF = (cpf) => {
+  if (!cpf) return '';
   const cleaned = cpf.replace(/\D/g, '');
-  // Deve ter 11 dígitos
-  return cleaned.length === 11 && /^\d{11}$/.test(cleaned);
+  // Garantir 11 dígitos (Excel pode remover zeros à esquerda)
+  return cleaned.padStart(11, '0');
 };
 
 /**
@@ -123,6 +156,7 @@ module.exports = {
   isValidPositiveInteger,
   isValidPositiveNumber,
   isValidCPF,
+  limparCPF,
   isValidEmail,
   isValidString,
   sanitizeString,

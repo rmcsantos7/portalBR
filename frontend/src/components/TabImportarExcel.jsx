@@ -87,7 +87,7 @@ const TabImportarExcel = ({ clienteId, colaboradoresHook, onProximo }) => {
         nome: colab.nome,
         cpf: colab.cpf,
         valor: colab.valor,
-        cargo: colab.cargo || 'Sem cargo'
+        categoria: colab.categoria || 'Sem categoria'
       }));
 
       onProximo(colaboradoresParaGerar);
@@ -119,6 +119,9 @@ const TabImportarExcel = ({ clienteId, colaboradoresHook, onProximo }) => {
           <strong style={{ fontSize: '0.9rem', color: '#166534' }}>Planilha Padrão</strong>
           <p style={{ margin: '2px 0 0', fontSize: '0.8rem', color: '#15803d' }}>
             Baixe a planilha com todos os colaboradores já preenchidos
+          </p>
+          <p style={{ margin: '4px 0 0', fontSize: '0.75rem', color: '#b45309', fontStyle: 'italic' }}>
+            Antes de importar, remova da planilha as linhas dos colaboradores que não receberão recarga.
           </p>
         </div>
         <button

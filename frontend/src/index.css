@@ -1,20 +1,69 @@
 /**
- * Global CSS
- * Estilos base para toda a aplicação
+ * Global CSS - BR Gorjeta Portal
+ * Fonte Nunito, cores roxo/rosa, estilos base
  */
+
+@import url('https://fonts.googleapis.com/css2?family=Nunito:wght@300;400;500;600;700;800&display=swap');
+
+:root {
+  /* === Cores Primárias === */
+  --roxo: #4A1D4F;
+  --roxo-dark: #3a1640;
+  --roxo-light: #5a2660;
+  --roxo-lighter: #6b3070;
+  --rosa: #F9678C;
+  --rosa-hover: #e8557a;
+  --rosa-light: rgba(249, 103, 140, 0.18);
+
+  /* === Cores Neutras === */
+  --bg: #f0f2f5;
+  --white: #fff;
+  --text: #111827;
+  --text-secondary: #6b7280;
+  --cinza-100: #f3f4f6;
+  --cinza-200: #e5e7eb;
+  --cinza-300: #d1d5db;
+  --cinza-400: #9ca3af;
+  --cinza-500: #6b7280;
+  --cinza-600: #4b5563;
+  --cinza-700: #374151;
+  --cinza-800: #1f2937;
+  --border: #e5e7eb;
+
+  /* === Status === */
+  --sucesso-bg: #d1fae5;
+  --sucesso-text: #065f46;
+  --erro-bg: #fee2e2;
+  --erro-text: #991b1b;
+  --alerta-bg: #fef3c7;
+  --alerta-text: #92400e;
+
+  /* === Border Radius (padronizado) === */
+  --radius-sm: 6px;
+  --radius: 8px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+  --radius-pill: 999px;
+
+  /* === Sombras === */
+  --shadow-sm: 0 1px 2px rgba(0,0,0,0.04);
+  --shadow: 0 1px 4px rgba(0,0,0,0.06);
+  --shadow-lg: 0 8px 24px rgba(0,0,0,0.12);
+
+  /* === Transições === */
+  --transition: 0.15s ease;
+}
 
 * {
   box-sizing: border-box;
 }
 
-html,
-body {
+html, body {
   margin: 0;
   padding: 0;
-  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
-    sans-serif;
-  background: #f5f7fb;
-  color: #111827;
+  font-family: 'Nunito', system-ui, -apple-system, sans-serif;
+  background: var(--bg);
+  color: var(--text);
 }
 
 body {
@@ -23,12 +72,11 @@ body {
 }
 
 code {
-  font-family: source-code-pro, Menlo, Monaco, Consolas, "Courier New",
-    monospace;
+  font-family: source-code-pro, Menlo, Monaco, Consolas, 'Courier New', monospace;
 }
 
 a {
-  color: #2e3191;
+  color: var(--roxo);
   text-decoration: none;
 }
 
@@ -40,27 +88,147 @@ button {
   font-family: inherit;
 }
 
-input,
-select,
-textarea {
+input, select, textarea {
   font-family: inherit;
 }
 
 /* Scrollbar */
 ::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
+  width: 6px;
+  height: 6px;
 }
 
 ::-webkit-scrollbar-track {
-  background: #f5f7fb;
+  background: transparent;
 }
 
 ::-webkit-scrollbar-thumb {
   background: #d1d5db;
-  border-radius: 4px;
+  border-radius: 3px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
   background: #9ca3af;
+}
+
+/* Botão Voltar padronizado */
+.btn-voltar {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: none;
+  border: none;
+  color: var(--roxo);
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 4px 0;
+  margin-bottom: 12px;
+  transition: opacity var(--transition);
+}
+
+.btn-voltar:hover {
+  opacity: 0.7;
+}
+
+/* ========================================
+   Hierarquia padronizada de páginas/forms
+   ======================================== */
+
+/* Cabeçalho da página */
+.page-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+.page-header-info {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.page-title {
+  margin: 0;
+  font-size: 1.4rem;
+  font-weight: 800;
+  color: var(--roxo);
+  letter-spacing: -0.3px;
+}
+
+.page-subtitle {
+  font-size: 0.85rem;
+  color: var(--cinza-600);
+  margin: 4px 0 0;
+}
+
+.page-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+/* Badge de status (pill) */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 12px;
+  border-radius: var(--radius-pill);
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.3px;
+  text-transform: uppercase;
+}
+
+.badge-ativo   { background: var(--sucesso-bg); color: var(--sucesso-text); }
+.badge-inativo { background: var(--erro-bg);    color: var(--erro-text); }
+.badge-roxo    { background: #f3e8ff;           color: var(--roxo); }
+.badge-cinza   { background: var(--cinza-100);  color: var(--cinza-500); }
+
+/* Card/seção de conteúdo */
+.section-card {
+  background: #fff;
+  border: 1px solid var(--cinza-300);
+  border-radius: var(--radius-md);
+  padding: 16px 20px;
+  margin-bottom: 16px;
+}
+
+/* Título de seção dentro de card */
+.section-title {
+  margin: 0 0 12px;
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: var(--cinza-800);
+}
+
+/* Labels de formulário */
+.form-label {
+  display: block;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--cinza-600);
+  margin-bottom: 4px;
+}
+
+.form-label-upper {
+  display: block;
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--cinza-500);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 4px;
+}
+
+/* Valor em destaque (info cards) */
+.info-value {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--cinza-800);
 }

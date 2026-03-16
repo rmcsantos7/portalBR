@@ -6,7 +6,7 @@
 import { useState, useCallback, useMemo } from 'react';
 import { creditosAPI } from '../services/api';
 
-export const useCredito = (clienteId) => {
+export const useCredito = (clienteId, login = 'sistema') => {
   const [creditoLoading, setCreditoLoading] = useState(false);
   const [creditoError, setCreditoError] = useState(null);
   const [creditoSucesso, setCreditoSucesso] = useState(null);
@@ -79,7 +79,7 @@ export const useCredito = (clienteId) => {
     setCreditoSucesso(null);
 
     try {
-      const response = await creditosAPI.gerar(clienteId, payload);
+      const response = await creditosAPI.gerar(clienteId, payload, login);
       const dados = response.data.data;
       setCreditoSucesso(dados);
 
@@ -92,7 +92,7 @@ export const useCredito = (clienteId) => {
     } finally {
       setCreditoLoading(false);
     }
-  }, [clienteId]);
+  }, [clienteId, login]);
 
   /**
    * Calcula resumo dos créditos

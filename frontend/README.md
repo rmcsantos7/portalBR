@@ -150,18 +150,6 @@ Gera pasta `build/` otimizada para deploy.
 
 ## 🚀 Deploy
 
-### Opção 1: Vercel
-```bash
-npm install -g vercel
-vercel
-```
-
-### Opção 2: Netlify
-```bash
-npm install -g netlify-cli
-netlify deploy --prod --dir=build
-```
-
 ### Opção 3: Manual
 1. Execute `npm run build`
 2. Copie pasta `build/` para seu servidor

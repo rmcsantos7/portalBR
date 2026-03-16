@@ -14,7 +14,7 @@ export const useFetchColaboradores = (clienteId) => {
   const [total, setTotal] = useState(0);
   const [pagination, setPagination] = useState({ limit: 50, offset: 0, page: 0 });
 
-  // Fetch inicial de setores/cargos
+  // Fetch inicial de setores/categorias
   useEffect(() => {
     if (!clienteId) return;
 
