@@ -4,6 +4,7 @@
 
 const dashboardRepository = require('../repositories/dashboard.repository');
 const { APIError } = require('../middlewares/errorHandler');
+const { ok } = require('../utils/response');
 const logger = require('../utils/logger');
 
 const obterDashboard = async (clienteId, inicio, fim) => {
@@ -27,22 +28,19 @@ const obterDashboard = async (clienteId, inicio, fim) => {
       dashboardRepository.buscarTopColaboradores(clienteId, dtInicio, dtFim)
     ]);
 
-    return {
-      success: true,
-      data: {
-        periodo: { inicio: dtInicio, fim: dtFim },
-        cards: {
-          movTotal,
-          totalColaboradores,
-          totalRepasses,
-          ticketMedio
-        },
-        graficos: {
-          evolucaoRecargas: evolucao,
-          topColaboradores
-        }
+    return ok({
+      periodo: { inicio: dtInicio, fim: dtFim },
+      cards: {
+        movTotal,
+        totalColaboradores,
+        totalRepasses,
+        ticketMedio
+      },
+      graficos: {
+        evolucaoRecargas: evolucao,
+        topColaboradores
       }
-    };
+    });
   } catch (error) {
     if (error instanceof APIError) throw error;
     logger.error('Erro ao obter dashboard:', { error: error.message });

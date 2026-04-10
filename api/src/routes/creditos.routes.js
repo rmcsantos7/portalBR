@@ -9,28 +9,17 @@ const creditosController = require('../controllers/creditos.controller');
 const authMiddleware = require('../middlewares/auth');
 const verificarClienteId = require('../middlewares/verificarClienteId');
 
-// Todas as rotas de créditos são protegidas + verificação de cliente
+// Rotas públicas (proxy hub-bass — usadas por <img> e <a> no browser, sem JWT)
+router.get('/nota/:nota_id/pdf', creditosController.obterBoletoPdf);
+router.get('/nota/:nota_id/qrcode', creditosController.obterBoletoQrCode);
+
+// Demais rotas protegidas
 router.use(authMiddleware);
 router.use(verificarClienteId);
 
-/**
- * POST /api/creditos/gerar
- * Query: cliente_id
- * Body: { colaboradores, descricao, aplicar_mesmo_valor, valor_uniforme }
- */
 router.post('/gerar', creditosController.gerarCredito);
-
-/**
- * GET /api/creditos/historico
- * Query: cliente_id, limit, offset, data_inicio, data_fim
- */
 router.get('/historico', creditosController.obterHistorico);
-
-/**
- * GET /api/creditos/remessa/:remessa_id
- * Query: cliente_id
- * Detalhes de uma remessa (colaboradores e valores)
- */
 router.get('/remessa/:remessa_id', creditosController.obterDetalheRemessa);
+router.delete('/remessa/:remessa_id', creditosController.cancelarRemessa);
 
 module.exports = router;

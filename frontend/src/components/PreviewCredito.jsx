@@ -5,6 +5,7 @@
  */
 
 import React, { useState } from 'react';
+import { creditosAPI } from '../services/api';
 
 const PreviewCredito = ({ clienteId, colaboradores: colaboradoresIniciais, onVoltar, onSucesso, creditoHook, taxa = 0 }) => {
   /**
@@ -101,7 +102,9 @@ const PreviewCredito = ({ clienteId, colaboradores: colaboradoresIniciais, onVol
         valor_bruto: totalBruto,
         valor_desconto: totalDesconto,
         valor_liquido: totalLiquido,
-        remessa_id: dados.remessa_id || null
+        remessa_id: dados.remessa_id || null,
+        nota_fiscal_id: dados.nota_fiscal_id || null,
+        boleto: dados.boleto || null
       });
     }
   };
@@ -119,6 +122,8 @@ const PreviewCredito = ({ clienteId, colaboradores: colaboradoresIniciais, onVol
 
   // Tela de sucesso
   if (sucesso) {
+    const boleto = sucesso.boleto;
+
     return (
       <div className="preview-credito">
         <div style={{
@@ -151,6 +156,7 @@ const PreviewCredito = ({ clienteId, colaboradores: colaboradoresIniciais, onVol
             A recarga foi inserida no sistema.
           </p>
 
+          {/* Cards resumo */}
           <div style={{
             display: 'flex',
             gap: '16px',
@@ -188,16 +194,14 @@ const PreviewCredito = ({ clienteId, colaboradores: colaboradoresIniciais, onVol
             </div>
 
             {taxa > 0 && (
-              <>
-                <div style={{ background: '#fef2f2', borderRadius: '10px', padding: '16px 24px', minWidth: '120px' }}>
-                  <div style={{ fontSize: '0.75rem', color: '#dc2626', marginBottom: '4px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                    Tar. Conv. ({taxa}%)
-                  </div>
-                  <div style={{ fontSize: '1.5rem', fontWeight: '700', color: '#dc2626' }}>
-                    - R$ {sucesso.valor_desconto.toFixed(2)}
-                  </div>
+              <div style={{ background: '#fef2f2', borderRadius: '10px', padding: '16px 24px', minWidth: '120px' }}>
+                <div style={{ fontSize: '0.75rem', color: '#dc2626', marginBottom: '4px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                  Tar. Conv. ({taxa}%)
                 </div>
-              </>
+                <div style={{ fontSize: '1.5rem', fontWeight: '700', color: '#dc2626' }}>
+                  - R$ {sucesso.valor_desconto.toFixed(2)}
+                </div>
+              </div>
             )}
 
             <div style={{ background: '#f0fdf4', borderRadius: '10px', padding: '16px 24px', minWidth: '120px' }}>
@@ -209,6 +213,133 @@ const PreviewCredito = ({ clienteId, colaboradores: colaboradoresIniciais, onVol
               </div>
             </div>
           </div>
+
+          {/* Seção do Boleto / QR Code PIX */}
+          {sucesso.nota_fiscal_id && (
+            <div style={{
+              width: '100%',
+              maxWidth: '480px',
+              background: '#fff',
+              border: '2px solid #e5e7eb',
+              borderRadius: '16px',
+              padding: '28px 24px',
+              marginBottom: '28px',
+              textAlign: 'center'
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', marginBottom: '20px' }}>
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#4A1D4F" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <rect x="3" y="3" width="7" height="7" /><rect x="14" y="3" width="7" height="7" /><rect x="3" y="14" width="7" height="7" /><rect x="14" y="14" width="7" height="7" />
+                </svg>
+                <h4 style={{ margin: 0, fontSize: '1.05rem', color: '#4A1D4F' }}>Pagamento via PIX</h4>
+              </div>
+
+              {/* QR Code Image */}
+              <div style={{ marginBottom: '16px' }}>
+                <img
+                  src={creditosAPI.getBoletoQrCodeUrl(sucesso.nota_fiscal_id)}
+                  alt="QR Code PIX"
+                  style={{
+                    width: '220px',
+                    height: '220px',
+                    borderRadius: '12px',
+                    border: '1px solid #e5e7eb',
+                    padding: '8px',
+                    background: '#fff'
+                  }}
+                />
+              </div>
+
+              {/* PIX Copia e Cola */}
+              {boleto && boleto.pix_qrcode && (
+                <div style={{ marginBottom: '16px' }}>
+                  <div style={{ fontSize: '0.75rem', color: '#6b7280', marginBottom: '6px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                    PIX Copia e Cola
+                  </div>
+                  <div style={{
+                    background: '#f9fafb',
+                    border: '1px solid #e5e7eb',
+                    borderRadius: '8px',
+                    padding: '10px 12px',
+                    fontSize: '0.72rem',
+                    fontFamily: 'monospace',
+                    wordBreak: 'break-all',
+                    color: '#374151',
+                    maxHeight: '80px',
+                    overflow: 'auto',
+                    lineHeight: '1.4'
+                  }}>
+                    {boleto.pix_qrcode}
+                  </div>
+                  <button
+                    onClick={() => {
+                      navigator.clipboard.writeText(boleto.pix_qrcode);
+                      alert('Código PIX copiado!');
+                    }}
+                    style={{
+                      marginTop: '8px',
+                      padding: '8px 20px',
+                      fontSize: '0.82rem',
+                      fontWeight: '600',
+                      color: '#fff',
+                      background: '#4A1D4F',
+                      border: 'none',
+                      borderRadius: '8px',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    Copiar código PIX
+                  </button>
+                </div>
+              )}
+
+              {/* Linha digitável */}
+              {boleto && boleto.linha_digitavel && (
+                <div style={{ marginBottom: '12px' }}>
+                  <div style={{ fontSize: '0.75rem', color: '#6b7280', marginBottom: '4px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                    Linha Digitável
+                  </div>
+                  <div style={{
+                    background: '#f9fafb',
+                    border: '1px solid #e5e7eb',
+                    borderRadius: '8px',
+                    padding: '8px 12px',
+                    fontSize: '0.8rem',
+                    fontFamily: 'monospace',
+                    color: '#374151'
+                  }}>
+                    {boleto.linha_digitavel}
+                  </div>
+                </div>
+              )}
+
+              {/* Botão baixar PDF */}
+              <a
+                href={creditosAPI.getBoletoPdfUrl(sucesso.nota_fiscal_id)}
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  marginTop: '8px',
+                  padding: '10px 24px',
+                  fontSize: '0.85rem',
+                  fontWeight: '600',
+                  color: '#4A1D4F',
+                  background: '#f3e8ff',
+                  border: '1px solid #d8b4fe',
+                  borderRadius: '8px',
+                  textDecoration: 'none',
+                  cursor: 'pointer'
+                }}
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/>
+                </svg>
+                Visualizar Boleto PDF
+              </a>
+            </div>
+          )}
 
           <button
             className="btn-primario"
@@ -291,7 +422,7 @@ const PreviewCredito = ({ clienteId, colaboradores: colaboradoresIniciais, onVol
               <th style={{ width: '40px' }}>#</th>
               <th>Nome</th>
               <th>CPF</th>
-              <th className="align-right" style={{ width: '130px' }}>Valor Bruto (R$)</th>
+              <th className="align-right" style={{ width: '130px' }}>Valor Bruto</th>
               {taxa > 0 && (
                 <>
                   <th className="align-right" style={{ width: '110px' }}>Tar. Conv.</th>

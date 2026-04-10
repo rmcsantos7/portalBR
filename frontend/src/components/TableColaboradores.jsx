@@ -25,15 +25,22 @@ const TableColaboradores = ({ colaboradores, selecionados, onToggle, valores, on
                 type="checkbox"
                 checked={colaboradores.length > 0 && colaboradores.every(c => selecionados[c.id])}
                 onChange={() => {
-                  colaboradores.forEach(c => {
-                    if (!selecionados[c.id]) onToggle(c.id);
-                  });
+                  const todosJaSelecionados = colaboradores.length > 0 && colaboradores.every(c => selecionados[c.id]);
+                  if (todosJaSelecionados) {
+                    colaboradores.forEach(c => {
+                      if (selecionados[c.id]) onToggle(c.id);
+                    });
+                  } else {
+                    colaboradores.forEach(c => {
+                      if (!selecionados[c.id]) onToggle(c.id);
+                    });
+                  }
                 }}
               />
             </th>
             <th>Nome</th>
             <th>CPF</th>
-            <th className="align-right" style={{ width: '140px' }}>Valor Bruto (R$)</th>
+            <th className="align-right" style={{ width: '140px' }}>Valor Bruto</th>
           </tr>
         </thead>
         <tbody>

@@ -14,6 +14,7 @@ const creditosRepository = require('../repositories/creditos.repository');
 const colaboradoresRepository = require('../repositories/colaboradores.repository');
 const { APIError } = require('../middlewares/errorHandler');
 const { isValidPositiveNumber, validatePagination } = require('../utils/validators');
+const { ok, created, paginated } = require('../utils/response');
 const logger = require('../utils/logger');
 const db = require('../config/database');
 
@@ -164,32 +165,88 @@ const gerarCredito = async (payload, login = 'sistema') => {
       valorTotal += valor;
     }
 
-    // 4. Confirma transação
+    // 4. Gera nota fiscal vinculada à remessa
+    let notaFiscalId = null;
+    if (creditosCriados.length > 0) {
+      const taxa = await colaboradoresRepository.buscarTaxaCliente(clienteId);
+      const valorBruto = Math.round(valorTotal * 100) / 100;
+      const valorServico = Math.round(valorTotal * taxa / 100 * 100) / 100;
+
+      notaFiscalId = await creditosRepository.criarNotaFiscal(
+        client,
+        clienteId,
+        valorBruto,
+        valorServico
+      );
+    }
+
+    // 5. Confirma transação
     await client.query('COMMIT');
+
+    // 6. Gera boleto via API EFI (após COMMIT, para não travar a transação)
+    let boleto = null;
+    if (notaFiscalId) {
+      try {
+        const baseUrl = process.env.BASE_URL_HUB_BAAS || 'http://localhost:5003';
+        const idOperacao = process.env.HUB_BAAS_ID_OPERACAO || 'BOLETO_EFI';
+        const token = process.env.HUB_BAAS_TOKEN || '';
+        const boletoUrl = `${baseUrl}/efi/V1/boleto/${idOperacao}/${notaFiscalId}`;
+        const headers = { 'Content-Type': 'application/json' };
+        if (token) headers['Authorization'] = `Bearer ${token}`;
+        const boletoResponse = await fetch(boletoUrl, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({ com_juros: false })
+        });
+
+        const boletoResult = await boletoResponse.json();
+
+        if (boletoResult.success && boletoResult.data) {
+          boleto = boletoResult.data;
+          await creditosRepository.atualizarNotaComBoleto(notaFiscalId, boleto);
+        } else {
+          logger.warn('API de boleto retornou erro:', { notaFiscalId, boletoResult });
+        }
+      } catch (boletoError) {
+        // Não falha a operação inteira se o boleto der erro — pode ser gerado depois
+        logger.error('Erro ao gerar boleto (nota fiscal já criada):', {
+          notaFiscalId,
+          error: boletoError.message
+        });
+      }
+    }
 
     logger.info('Crédito gerado com sucesso:', {
       remessaId,
       clienteId,
+      notaFiscalId,
+      boleto: boleto ? { charge_id: boleto.charge_id, status: boleto.status } : null,
       totalColaboradores: creditosCriados.length,
       totalIgnorados: ignorados.length,
       valorTotal,
       login
     });
 
-    return {
-      success: true,
-      message: `Crédito gerado com sucesso para ${creditosCriados.length} colaborador(es)`,
-      data: {
-        remessa_id: remessaId,
-        total_inseridos: creditosCriados.length,
-        total_ignorados: ignorados.length,
-        valor_total: Math.round(valorTotal * 100) / 100,
-        data_criacao: new Date().toISOString(),
-        criado_por: login,
-        detalhes: creditosCriados,
-        ignorados: ignorados.length > 0 ? ignorados : undefined
-      }
-    };
+    return created({
+      remessa_id: remessaId,
+      nota_fiscal_id: notaFiscalId,
+      total_inseridos: creditosCriados.length,
+      total_ignorados: ignorados.length,
+      valor_total: Math.round(valorTotal * 100) / 100,
+      data_criacao: new Date().toISOString(),
+      criado_por: login,
+      detalhes: creditosCriados,
+      ignorados: ignorados.length > 0 ? ignorados : undefined,
+      boleto: boleto ? {
+        charge_id: boleto.charge_id,
+        status: boleto.status,
+        codigo_barras: boleto.codigo_barras,
+        linha_digitavel: boleto.linha_digitavel,
+        pix_qrcode: boleto.pix?.qrcode || null,
+        pdf_url: boleto.links?.pdf_url || null,
+        qrcode_image_url: boleto.links?.qrcode_image_url || null
+      } : null
+    }, `Crédito gerado com sucesso para ${creditosCriados.length} colaborador(es)`);
   } catch (error) {
     await client.query('ROLLBACK');
     logger.error('Erro ao gerar crédito:', { error: error.message });
@@ -233,14 +290,11 @@ const obterHistorico = async (query, clienteId) => {
       filtro_datas: { data_inicio, data_fim }
     });
 
-    return {
-      success: true,
-      data: resultado.historico,
+    return paginated(resultado.historico, {
       total: resultado.total,
       limit: validLimit,
-      offset: validOffset,
-      page: resultado.page
-    };
+      offset: validOffset
+    });
   } catch (error) {
     logger.error('Erro ao obter histórico:', { error: error.message });
     throw new APIError('Erro ao buscar histórico', 500);
@@ -269,6 +323,18 @@ const obterDetalheRemessa = async (remessaId, clienteId) => {
       titulo: detalhes[0].titulo || null
     } : {};
 
+    // Dados do boleto (vêm do JOIN com crd_nota_fiscal)
+    const boleto = detalhes.length > 0 && detalhes[0].boleto_charge_id ? {
+      nota_fiscal_id: detalhes[0].nota_fiscal_id,
+      charge_id: detalhes[0].boleto_charge_id,
+      codigo_barras: detalhes[0].boleto_codigo_barras,
+      linha_digitavel: detalhes[0].boleto_linha_digitavel,
+      pix_qrcode: detalhes[0].boleto_pix_qrcode,
+      pdf_url: detalhes[0].boleto_pdf_url,
+      qrcode_image_url: detalhes[0].boleto_qrcode_image_url,
+      status: detalhes[0].boleto_status
+    } : null;
+
     // Valor no banco = bruto (o que o usuário digitou)
     // Líquido = bruto - (bruto * taxa / 100)
     const colaboradores = detalhes.map(d => {
@@ -290,21 +356,132 @@ const obterDetalheRemessa = async (remessaId, clienteId) => {
     const totalBruto = colaboradores.reduce((s, c) => s + c.valor_bruto, 0);
     const totalLiquido = colaboradores.reduce((s, c) => s + c.valor_liquido, 0);
 
-    return {
-      success: true,
-      data: {
-        remessa_id: remessaId,
-        taxa,
-        ...meta,
-        total_colaboradores: colaboradores.length,
-        valor_bruto: Math.round(totalBruto * 100) / 100,
-        valor_liquido: Math.round(totalLiquido * 100) / 100,
-        colaboradores
-      }
-    };
+    return ok({
+      remessa_id: remessaId,
+      taxa,
+      ...meta,
+      total_colaboradores: colaboradores.length,
+      valor_bruto: Math.round(totalBruto * 100) / 100,
+      valor_liquido: Math.round(totalLiquido * 100) / 100,
+      boleto,
+      colaboradores
+    });
   } catch (error) {
     logger.error('Erro ao obter detalhe da remessa:', { error: error.message });
     throw new APIError('Erro ao buscar detalhes da remessa', 500);
+  }
+};
+
+/**
+ * Cancela uma remessa inteira:
+ * 1. Verifica se existe nota fiscal vinculada
+ * 2. Se tem boleto, consulta status na API EFI
+ * 3. Se boleto está aberto (waiting), cancela na API EFI
+ * 4. Exclui: créditos, remessa e nota fiscal (tudo em transação)
+ *
+ * @param {number} remessaId - ID da remessa
+ * @param {number} clienteId - ID do cliente
+ * @returns {Promise<object>} Resultado do cancelamento
+ */
+const cancelarRemessa = async (remessaId, clienteId) => {
+  if (!remessaId || !clienteId) {
+    throw new APIError('remessa_id e cliente_id são obrigatórios', 400);
+  }
+
+  // 1. Busca nota fiscal vinculada à remessa
+  const notaFiscal = await creditosRepository.buscarNotaFiscalPorRemessa(remessaId, clienteId);
+
+  const baseUrl = process.env.BASE_URL_HUB_BAAS || 'http://localhost:5003';
+  const idOperacao = process.env.HUB_BAAS_ID_OPERACAO || 'BOLETO_EFI';
+  const token = process.env.HUB_BAAS_TOKEN || '';
+  const headers = { 'Content-Type': 'application/json' };
+  if (token) headers['Authorization'] = `Bearer ${token}`;
+
+  let boletoStatus = null;
+  let boletoCancelado = false;
+
+  // 2. Se tem nota com boleto, verifica status
+  if (notaFiscal && notaFiscal.nota_fiscal_id) {
+    try {
+      const statusUrl = `${baseUrl}/efi/V1/boleto/${idOperacao}/${notaFiscal.nota_fiscal_id}`;
+      const statusResponse = await fetch(statusUrl, { headers });
+      const statusResult = await statusResponse.json();
+
+      if (statusResult.success && statusResult.data) {
+        boletoStatus = statusResult.data.status;
+        logger.info('Status do boleto consultado:', { notaId: notaFiscal.nota_fiscal_id, status: boletoStatus });
+      }
+    } catch (err) {
+      logger.warn('Erro ao consultar status do boleto (prosseguindo com exclusão):', { error: err.message });
+    }
+
+    // 3. Se boleto está aberto (waiting), cancela na API EFI
+    if (boletoStatus === 'waiting' || boletoStatus === 'active') {
+      try {
+        const cancelUrl = `${baseUrl}/efi/V1/boleto/${idOperacao}/${notaFiscal.nota_fiscal_id}/cancel`;
+        const cancelResponse = await fetch(cancelUrl, {
+          method: 'PUT',
+          headers
+        });
+        const cancelResult = await cancelResponse.json();
+        boletoCancelado = cancelResult.success || false;
+        logger.info('Boleto cancelado na API EFI:', { notaId: notaFiscal.nota_fiscal_id, resultado: cancelResult });
+      } catch (err) {
+        logger.warn('Erro ao cancelar boleto na API EFI (prosseguindo com exclusão):', { error: err.message });
+      }
+    } else if (boletoStatus === 'paid') {
+      throw new APIError('Não é possível cancelar: o boleto já foi pago', 400, { status: boletoStatus });
+    }
+  }
+
+  // 4. Exclui tudo em transação
+  const client = await db.getClient();
+
+  try {
+    await client.query('BEGIN');
+
+    // Exclui créditos
+    const creditosExcluidos = await creditosRepository.excluirCreditosPorRemessa(client, remessaId, clienteId);
+
+    // Exclui nota fiscal (se existir)
+    if (notaFiscal && notaFiscal.nota_fiscal_id) {
+      await creditosRepository.excluirNotaFiscal(client, notaFiscal.nota_fiscal_id);
+    }
+
+    // Exclui remessa
+    const remessaExcluida = await creditosRepository.excluirRemessa(client, remessaId, clienteId);
+
+    if (remessaExcluida === 0) {
+      await client.query('ROLLBACK');
+      throw new APIError('Remessa não encontrada ou já excluída', 404);
+    }
+
+    await client.query('COMMIT');
+
+    logger.info('Remessa cancelada com sucesso:', {
+      remessaId,
+      clienteId,
+      creditosExcluidos,
+      notaExcluida: notaFiscal?.nota_fiscal_id || null,
+      boletoCancelado,
+      boletoStatus
+    });
+
+    return ok({
+      remessa_id: remessaId,
+      creditos_excluidos: creditosExcluidos,
+      nota_fiscal_excluida: notaFiscal?.nota_fiscal_id || null,
+      boleto_cancelado: boletoCancelado,
+      boleto_status_anterior: boletoStatus
+    }, 'Remessa cancelada com sucesso');
+  } catch (error) {
+    await client.query('ROLLBACK');
+    logger.error('Erro ao cancelar remessa:', { error: error.message });
+
+    if (error instanceof APIError) throw error;
+    throw new APIError('Erro ao cancelar remessa', 500);
+  } finally {
+    client.release();
   }
 };
 
@@ -312,5 +489,6 @@ module.exports = {
   validarPayloadCredito,
   gerarCredito,
   obterHistorico,
-  obterDetalheRemessa
+  obterDetalheRemessa,
+  cancelarRemessa
 };

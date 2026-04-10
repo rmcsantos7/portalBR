@@ -6,7 +6,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import TableColaboradores from './TableColaboradores';
 
-const TabSelecaoManual = ({ clienteId, colaboradoresHook, onProximo }) => {
+const TabSelecaoManual = ({ clienteId, colaboradoresHook, onProximo, onVoltar, onFechar }) => {
   const [search, setSearch] = useState('');
   const [setorId, setSetorId] = useState('');
   const [selecionados, setSelecionados] = useState({});
@@ -200,13 +200,28 @@ const TabSelecaoManual = ({ clienteId, colaboradoresHook, onProximo }) => {
                 </span>
               )}
             </div>
-            <button
-              className="btn-primario"
-              onClick={() => onProximo(colaboradoresArray)}
-              disabled={totalSelecionados === 0}
-            >
-              Próximo
-            </button>
+            <div style={{ display: 'flex', gap: '8px' }}>
+              {onVoltar && (
+                <button className="btn-voltar" onClick={onVoltar}>
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <polyline points="15 18 9 12 15 6" />
+                  </svg>
+                  Voltar
+                </button>
+              )}
+              {onFechar && (
+                <button className="btn-secundario" onClick={onFechar}>
+                  Fechar
+                </button>
+              )}
+              <button
+                className="btn-primario"
+                onClick={() => onProximo(colaboradoresArray)}
+                disabled={totalSelecionados === 0}
+              >
+                Próximo
+              </button>
+            </div>
           </div>
         </>
       )}

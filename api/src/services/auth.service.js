@@ -8,6 +8,7 @@ const jwt = require('jsonwebtoken');
 
 const authRepository = require('../repositories/auth.repository');
 const { APIError } = require('../middlewares/errorHandler');
+const { ok } = require('../utils/response');
 const logger = require('../utils/logger');
 
 // SEGURANÇA: JWT_SECRET obrigatório via variável de ambiente
@@ -73,23 +74,20 @@ const login = async (loginUsuario, senha) => {
 
     logger.info('Login realizado:', { login: loginUsuario, usr_codigo: usuario.usr_codigo, senhaTemporaria });
 
-    return {
-      success: true,
-      data: {
-        token,
-        senha_temporaria: senhaTemporaria,
-        usuario: {
-          usr_codigo: usuario.usr_codigo,
-          usr_login: usuario.usr_login,
-          usr_nome: usuario.usr_nome,
-          usr_email: usuario.usr_email,
-          crd_cli_id: usuario.crd_cli_id,
-          cliente_nome: usuario.cliente_nome,
-          cliente_cnpj: usuario.cliente_cnpj,
-          usr_administrador: usuario.usr_administrador
-        }
+    return ok({
+      token,
+      senha_temporaria: senhaTemporaria,
+      usuario: {
+        usr_codigo: usuario.usr_codigo,
+        usr_login: usuario.usr_login,
+        usr_nome: usuario.usr_nome,
+        usr_email: usuario.usr_email,
+        crd_cli_id: usuario.crd_cli_id,
+        cliente_nome: usuario.cliente_nome,
+        cliente_cnpj: usuario.cliente_cnpj,
+        usr_administrador: usuario.usr_administrador
       }
-    };
+    });
   } catch (error) {
     if (error instanceof APIError) throw error;
     logger.error('Erro no login:', { error: error.message });
@@ -132,10 +130,7 @@ const recuperarSenha = async (email) => {
     const usuario = await authRepository.buscarUsuarioPorEmail(email);
     if (!usuario) {
       logger.info('Tentativa de recuperação para email não encontrado:', { email });
-      return {
-        success: true,
-        message: 'Se o email estiver cadastrado, você receberá uma senha temporária em instantes.'
-      };
+      return ok(null, 'Se o email estiver cadastrado, você receberá uma senha temporária em instantes.');
     }
 
     // 2. Buscar config SMTP do banco (pk=1)
@@ -254,11 +249,7 @@ const trocarSenha = async (usrCodigo, senhaAtual, novaSenha) => {
 
     logger.info('Senha alterada com sucesso:', { usr_codigo: usrCodigo });
 
-    return {
-      success: true,
-      data: { token },
-      message: 'Senha alterada com sucesso'
-    };
+    return ok({ token }, 'Senha alterada com sucesso');
   } catch (error) {
     if (error instanceof APIError) throw error;
     logger.error('Erro ao trocar senha:', { error: error.message });

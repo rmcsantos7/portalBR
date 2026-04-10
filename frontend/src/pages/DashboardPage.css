@@ -45,65 +45,77 @@
 .dash-filter {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 10px;
   margin-bottom: 14px;
   background: #fff;
-  border-radius: 14px;
-  padding: 16px 22px;
-  box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+  border-radius: 10px;
+  padding: 12px 18px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.05);
 }
 
-.dash-filter-info {
-  margin-right: auto;
+.dash-filter-icon {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  background: linear-gradient(135deg, #4A1D4F, #6b3070);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
 }
 
-.dash-section-title {
-  font-size: 16px;
-  font-weight: 800;
-  color: #222;
-  margin: 0;
-  line-height: 1.2;
+.dash-filter-icon svg {
+  width: 16px;
+  height: 16px;
+  stroke: #fff;
 }
 
-.dash-section-sub {
+.dash-filter-label {
+  font-size: 13px;
+  font-weight: 700;
+  color: #4A1D4F;
+  margin-right: 4px;
+  white-space: nowrap;
+}
+
+.dash-filter-sep {
   font-size: 12px;
-  color: #999;
-  margin: 2px 0 0 0;
-}
-
-.dash-filter label {
-  font-size: 12px;
-  color: #888;
-  font-weight: 500;
+  color: #aaa;
+  font-weight: 400;
 }
 
 .dash-filter input[type="date"] {
-  padding: 8px 12px;
-  border: 1px solid #e0e0e0;
-  border-radius: 20px;
+  padding: 7px 12px;
+  border: 1px solid #e8e8e8;
+  border-radius: 8px;
   font-size: 13px;
   font-family: inherit;
   outline: none;
   color: #333;
-  background: #fff;
+  background: #fafafa;
+  transition: border-color 0.15s;
 }
 
 .dash-filter input[type="date"]:focus {
   border-color: #F9678C;
+  background: #fff;
 }
 
 .dash-filter-btn {
-  padding: 8px 24px;
+  display: inline-flex;
+  align-items: center;
+  padding: 7px 20px;
   background: #4A1D4F;
   color: #fff;
   border: none;
-  border-radius: 20px;
+  border-radius: 8px;
   font-size: 13px;
   font-weight: 600;
   cursor: pointer;
   font-family: inherit;
   transition: background 0.15s;
   white-space: nowrap;
+  margin-left: auto;
 }
 
 .dash-filter-btn:hover {

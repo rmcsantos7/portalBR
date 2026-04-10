@@ -91,7 +91,15 @@ export const creditosAPI = {
     return api.get(`/creditos/remessa/${remessaId}`, {
       params: { cliente_id: clienteId }
     });
-  }
+  },
+  cancelarRemessa: (clienteId, remessaId) => {
+    return api.delete(`/creditos/remessa/${remessaId}`, {
+      params: { cliente_id: clienteId }
+    });
+  },
+  // URLs proxy para boleto (PDF e QR Code via hub-bass)
+  getBoletoPdfUrl: (notaId) => `${API_URL}/creditos/nota/${notaId}/pdf`,
+  getBoletoQrCodeUrl: (notaId) => `${API_URL}/creditos/nota/${notaId}/qrcode`
 };
 
 /**

@@ -7,10 +7,15 @@ import React, { useState, useEffect } from 'react';
 import { creditosAPI } from '../services/api';
 import { gerarPdfRemessa } from '../utils/pdfGenerator';
 
+// Nota fiscal ID está em dados.boleto.nota_fiscal_id
+
 const DetalheRecarga = ({ clienteId, remessaId, onVoltar }) => {
   const [dados, setDados] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [mostrarQrCode, setMostrarQrCode] = useState(false);
+  const [cancelando, setCancelando] = useState(false);
+  const [mostrarConfirmacao, setMostrarConfirmacao] = useState(false);
 
   useEffect(() => {
     if (clienteId && remessaId) {
@@ -40,6 +45,21 @@ const DetalheRecarga = ({ clienteId, remessaId, onVoltar }) => {
 
   const formatarMoeda = (valor) => {
     return (parseFloat(valor) || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+  };
+
+  const handleCancelar = async () => {
+    setCancelando(true);
+    try {
+      await creditosAPI.cancelarRemessa(clienteId, remessaId);
+      alert('Remessa cancelada com sucesso!');
+      onVoltar();
+    } catch (err) {
+      const msg = err.response?.data?.message || err.response?.data?.error || 'Erro ao cancelar remessa';
+      alert(msg);
+    } finally {
+      setCancelando(false);
+      setMostrarConfirmacao(false);
+    }
   };
 
   const formatarCPF = (cpf) => {
@@ -107,26 +127,49 @@ const DetalheRecarga = ({ clienteId, remessaId, onVoltar }) => {
           <p className="page-subtitle">Detalhes completos da recarga</p>
         </div>
         <div className="page-header-actions" style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-          <button className="btn-secundario" style={{ padding: '8px 16px', fontSize: '0.82rem', display: 'flex', alignItems: 'center', gap: '6px' }}
-            onClick={() => alert('Funcionalidade em desenvolvimento')}>
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/>
-            </svg>
-            Nota Fiscal
-          </button>
-          <button className="btn-secundario" style={{ padding: '8px 16px', fontSize: '0.82rem', display: 'flex', alignItems: 'center', gap: '6px' }}
-            onClick={() => alert('Funcionalidade em desenvolvimento')}>
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
-            </svg>
-            Boleto
-          </button>
+          {dados.boleto && dados.boleto.nota_fiscal_id && (
+            <>
+              <button className="btn-secundario" style={{ padding: '8px 16px', fontSize: '0.82rem', display: 'flex', alignItems: 'center', gap: '6px' }}
+                onClick={() => setMostrarQrCode(true)}>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <rect x="3" y="3" width="7" height="7" /><rect x="14" y="3" width="7" height="7" /><rect x="3" y="14" width="7" height="7" /><rect x="14" y="14" width="7" height="7" />
+                </svg>
+                QR Code PIX
+              </button>
+              <a
+                href={creditosAPI.getBoletoPdfUrl(dados.boleto.nota_fiscal_id)}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="btn-secundario"
+                style={{ padding: '8px 16px', fontSize: '0.82rem', display: 'flex', alignItems: 'center', gap: '6px', textDecoration: 'none' }}
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/>
+                </svg>
+                Visualizar Boleto
+              </a>
+            </>
+          )}
           <button className="btn-secundario" style={{ padding: '8px 16px', fontSize: '0.82rem', display: 'flex', alignItems: 'center', gap: '6px' }}
             onClick={() => gerarPdfRemessa({ ...dados, remessa_id: remessaId })}>
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
             </svg>
             Relatório
+          </button>
+          <button
+            onClick={() => setMostrarConfirmacao(true)}
+            disabled={cancelando}
+            style={{
+              padding: '8px 16px', fontSize: '0.82rem', display: 'flex', alignItems: 'center', gap: '6px',
+              background: '#fef2f2', color: '#dc2626', border: '1px solid #fecaca', borderRadius: '8px',
+              cursor: cancelando ? 'not-allowed' : 'pointer', fontWeight: '500'
+            }}
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#dc2626" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/>
+            </svg>
+            {cancelando ? 'Cancelando...' : 'Cancelar Remessa'}
           </button>
         </div>
       </div>
@@ -319,6 +362,167 @@ const DetalheRecarga = ({ clienteId, remessaId, onVoltar }) => {
           </tfoot>
         </table>
       </div>
+
+      {/* Modal Confirmação de Cancelamento */}
+      {mostrarConfirmacao && (
+        <div style={{
+          position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex',
+          alignItems: 'center', justifyContent: 'center', zIndex: 1000
+        }} onClick={() => !cancelando && setMostrarConfirmacao(false)}>
+          <div style={{
+            background: '#fff', borderRadius: '20px', padding: '36px 32px',
+            maxWidth: '440px', width: '90%', textAlign: 'center', position: 'relative'
+          }} onClick={(e) => e.stopPropagation()}>
+            {/* Ícone de alerta */}
+            <div style={{
+              width: '56px', height: '56px', borderRadius: '50%',
+              background: '#fef2f2', display: 'flex', alignItems: 'center', justifyContent: 'center',
+              margin: '0 auto 16px'
+            }}>
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#dc2626" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>
+                <line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
+              </svg>
+            </div>
+
+            <h3 style={{ margin: '0 0 8px', fontSize: '1.1rem', color: '#111827' }}>
+              Cancelar Remessa #{remessaId}?
+            </h3>
+
+            <p style={{ margin: '0 0 8px', color: '#6b7280', fontSize: '0.88rem', lineHeight: '1.5' }}>
+              Esta ação irá:
+            </p>
+            <ul style={{ textAlign: 'left', margin: '0 0 20px', padding: '0 20px', color: '#6b7280', fontSize: '0.85rem', lineHeight: '1.8' }}>
+              <li>Cancelar o boleto (se estiver aberto)</li>
+              <li>Excluir todos os créditos dos colaboradores</li>
+              <li>Excluir a nota fiscal</li>
+              <li>Excluir a remessa</li>
+            </ul>
+
+            <p style={{ margin: '0 0 24px', color: '#dc2626', fontSize: '0.82rem', fontWeight: '600' }}>
+              Esta ação não pode ser desfeita!
+            </p>
+
+            <div style={{ display: 'flex', gap: '12px', justifyContent: 'center' }}>
+              <button
+                onClick={() => setMostrarConfirmacao(false)}
+                disabled={cancelando}
+                style={{
+                  padding: '10px 24px', fontSize: '0.88rem', fontWeight: '500',
+                  color: '#374151', background: '#f3f4f6', border: '1px solid #d1d5db',
+                  borderRadius: '8px', cursor: 'pointer'
+                }}
+              >
+                Não, manter
+              </button>
+              <button
+                onClick={handleCancelar}
+                disabled={cancelando}
+                style={{
+                  padding: '10px 24px', fontSize: '0.88rem', fontWeight: '600',
+                  color: '#fff', background: '#dc2626', border: 'none',
+                  borderRadius: '8px', cursor: cancelando ? 'not-allowed' : 'pointer',
+                  opacity: cancelando ? 0.7 : 1
+                }}
+              >
+                {cancelando ? 'Cancelando...' : 'Sim, cancelar tudo'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal QR Code PIX */}
+      {mostrarQrCode && dados.boleto && (
+        <div style={{
+          position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex',
+          alignItems: 'center', justifyContent: 'center', zIndex: 1000
+        }} onClick={() => setMostrarQrCode(false)}>
+          <div style={{
+            background: '#fff', borderRadius: '20px', padding: '36px 32px',
+            maxWidth: '440px', width: '90%', textAlign: 'center', position: 'relative'
+          }} onClick={(e) => e.stopPropagation()}>
+            {/* Fechar */}
+            <button onClick={() => setMostrarQrCode(false)} style={{
+              position: 'absolute', top: '12px', right: '16px', background: 'none',
+              border: 'none', fontSize: '1.4rem', cursor: 'pointer', color: '#9ca3af'
+            }}>&times;</button>
+
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', marginBottom: '20px' }}>
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#4A1D4F" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <rect x="3" y="3" width="7" height="7" /><rect x="14" y="3" width="7" height="7" /><rect x="3" y="14" width="7" height="7" /><rect x="14" y="14" width="7" height="7" />
+              </svg>
+              <h3 style={{ margin: 0, fontSize: '1.1rem', color: '#4A1D4F' }}>Pagamento via PIX</h3>
+            </div>
+
+            <div style={{ fontSize: '1.8rem', fontWeight: '800', color: '#4A1D4F', marginBottom: '20px' }}>
+              {formatarMoeda(dados.valor_bruto)}
+            </div>
+
+            {/* QR Code Image */}
+            <div style={{ marginBottom: '16px' }}>
+              <img
+                src={creditosAPI.getBoletoQrCodeUrl(dados.boleto.nota_fiscal_id)}
+                alt="QR Code PIX"
+                style={{ width: '220px', height: '220px', borderRadius: '12px', border: '1px solid #e5e7eb', padding: '8px', background: '#fff' }}
+              />
+            </div>
+
+            {/* PIX Copia e Cola */}
+            {dados.boleto.pix_qrcode && (
+              <div style={{ marginBottom: '16px' }}>
+                <div style={{ fontSize: '0.75rem', color: '#6b7280', marginBottom: '6px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                  PIX Copia e Cola
+                </div>
+                <div style={{
+                  background: '#f9fafb', border: '1px solid #e5e7eb', borderRadius: '8px',
+                  padding: '10px 12px', fontSize: '0.7rem', fontFamily: 'monospace',
+                  wordBreak: 'break-all', color: '#374151', maxHeight: '70px', overflow: 'auto', lineHeight: '1.4'
+                }}>
+                  {dados.boleto.pix_qrcode}
+                </div>
+                <button
+                  onClick={() => {
+                    navigator.clipboard.writeText(dados.boleto.pix_qrcode);
+                    alert('Código PIX copiado!');
+                  }}
+                  style={{
+                    marginTop: '10px', padding: '10px 24px', fontSize: '0.85rem', fontWeight: '600',
+                    color: '#fff', background: '#4A1D4F', border: 'none', borderRadius: '8px', cursor: 'pointer'
+                  }}
+                >
+                  Copiar código PIX
+                </button>
+              </div>
+            )}
+
+            {/* Linha digitável */}
+            {dados.boleto.linha_digitavel && (
+              <div style={{ marginBottom: '12px' }}>
+                <div style={{ fontSize: '0.75rem', color: '#6b7280', marginBottom: '4px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                  Linha Digitável
+                </div>
+                <div style={{
+                  background: '#f9fafb', border: '1px solid #e5e7eb', borderRadius: '8px',
+                  padding: '8px 12px', fontSize: '0.78rem', fontFamily: 'monospace', color: '#374151'
+                }}>
+                  {dados.boleto.linha_digitavel}
+                </div>
+              </div>
+            )}
+
+            {/* Status */}
+            <div style={{ fontSize: '0.78rem', color: '#6b7280', marginTop: '8px' }}>
+              Status: <span style={{
+                fontWeight: '600',
+                color: dados.boleto.status === 'paid' ? '#059669' : dados.boleto.status === 'waiting' ? '#d97706' : '#6b7280'
+              }}>
+                {dados.boleto.status === 'waiting' ? 'Aguardando pagamento' : dados.boleto.status === 'paid' ? 'Pago' : dados.boleto.status}
+              </span>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

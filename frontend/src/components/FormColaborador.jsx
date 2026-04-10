@@ -183,6 +183,7 @@ const FormColaborador = ({ clienteId, colaboradorId, login, onVoltar }) => {
     const dadosEnvio = {
       ...form,
       cpf: form.cpf.replace(/\D/g, ''),
+      celular: form.celular ? form.celular.replace(/\D/g, '') : '',
       email: form.email.trim().toLowerCase()
     };
 

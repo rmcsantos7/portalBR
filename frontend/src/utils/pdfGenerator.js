@@ -177,17 +177,17 @@ const desenharInfoCliente = (doc, cliente, y) => {
 
 export const gerarPdfRecargasPeriodo = (dados) => {
   const doc = new jsPDF('portrait', 'pt', 'a4');
-  let y = desenharHeader(doc, 'Relatorio de Recarga por Periodo');
+  let y = desenharHeader(doc, 'Relatório de Recarga por Período');
 
   // Info do cliente
   y = desenharInfoCliente(doc, dados.cliente, y);
 
-  // Data de Emissao
+  // Data de Emissão
   y += 6;
   doc.setFontSize(8);
   doc.setFont('helvetica', 'normal');
   doc.setTextColor(...CORES.cinzaMedio);
-  doc.text(`Data de Emissao: ${new Date().toLocaleString('pt-BR')}`, 20, y);
+  doc.text(`Data de Emissão: ${new Date().toLocaleString('pt-BR')}`, 20, y);
 
   // Cards de resumo
   y += 20;
@@ -195,7 +195,7 @@ export const gerarPdfRecargasPeriodo = (dados) => {
   const cardH = 50;
   const cards = [
     { label: 'Valor Total de Recargas', value: formatarMoeda(dados.valor_total), color: CORES.roxo },
-    { label: 'Periodo', value: `${formatarData(dados.periodo.inicio)} a ${formatarData(dados.periodo.fim)}`, color: CORES.cinzaEscuro },
+    { label: 'Período', value: `${formatarData(dados.periodo.inicio)} a ${formatarData(dados.periodo.fim)}`, color: CORES.cinzaEscuro },
     { label: 'Recargas Realizadas', value: String(dados.total_recargas), color: CORES.rosa }
   ];
 
@@ -270,7 +270,7 @@ export const gerarPdfRecargasPeriodo = (dados) => {
   } else {
     doc.setFontSize(10);
     doc.setTextColor(...CORES.cinzaMedio);
-    doc.text('Nenhuma recarga encontrada no periodo informado.', 20, y);
+    doc.text('Nenhuma recarga encontrada no período informado.', 20, y);
   }
 
   adicionarFooter(doc);
@@ -283,12 +283,12 @@ export const gerarPdfRecargasPeriodo = (dados) => {
 
 export const gerarPdfColaboradores = (dados) => {
   const doc = new jsPDF('landscape', 'pt', 'a4');
-  let y = desenharHeader(doc, 'Relatorio de Colaboradores Cadastrados');
+  let y = desenharHeader(doc, 'Relatório de Colaboradores Cadastrados');
 
   // Info do cliente
   y = desenharInfoCliente(doc, dados.cliente, y);
 
-  // Data de Emissao
+  // Data de Emissão
   y += 6;
   doc.setFontSize(8);
   doc.setFont('helvetica', 'normal');
@@ -361,7 +361,7 @@ export const gerarPdfColaboradores = (dados) => {
   // Verifica se precisa nova página
   if (y > doc.internal.pageSize.getHeight() - 120) {
     doc.addPage();
-    y = desenharHeader(doc, 'Relatorio de Colaboradores Cadastrados');
+    y = desenharHeader(doc, 'Relatório de Colaboradores Cadastrados');
   }
 
   doc.setFontSize(12);
@@ -431,7 +431,7 @@ export const gerarPdfColaboradores = (dados) => {
 export const gerarPdfHistoricoColaborador = (dados) => {
   const doc = new jsPDF('portrait', 'pt', 'a4');
   const pageWidth = doc.internal.pageSize.getWidth();
-  let y = desenharHeader(doc, 'Historico de Recebimentos');
+  let y = desenharHeader(doc, 'Histórico de Recebimentos');
 
   // Info do cliente
   y = desenharInfoCliente(doc, dados.cliente, y);
@@ -462,7 +462,7 @@ export const gerarPdfHistoricoColaborador = (dados) => {
   doc.setTextColor(...CORES.cinzaEscuro);
   doc.text(`Documento: ${formatarCPF(dados.colaborador.cpf)}`, 34, y + 35);
 
-  doc.text(`Periodo: ${formatarData(dados.periodo.inicio)} a ${formatarData(dados.periodo.fim)}`, 34, y + 50);
+  doc.text(`Período: ${formatarData(dados.periodo.inicio)} a ${formatarData(dados.periodo.fim)}`, 34, y + 50);
 
   // Total geral (no canto direito do card)
   doc.setFontSize(8);
@@ -483,7 +483,7 @@ export const gerarPdfHistoricoColaborador = (dados) => {
       const estimatedHeight = 40 + (mes.creditos.length * 22);
       if (y + estimatedHeight > doc.internal.pageSize.getHeight() - 50) {
         doc.addPage();
-        y = desenharHeader(doc, 'Historico de Recebimentos');
+        y = desenharHeader(doc, 'Histórico de Recebimentos');
       }
 
       // Cabeçalho do mês — capitalizar primeira letra
@@ -541,7 +541,7 @@ export const gerarPdfHistoricoColaborador = (dados) => {
   } else {
     doc.setFontSize(10);
     doc.setTextColor(...CORES.cinzaMedio);
-    doc.text('Nenhum credito encontrado no periodo informado.', 20, y);
+    doc.text('Nenhum crédito encontrado no período informado.', 20, y);
   }
 
   adicionarFooter(doc);
@@ -563,7 +563,7 @@ export const gerarPdfRemessa = (dados) => {
     ? `Remessa #${dados.remessa_id} - ${dados.titulo}`
     : `Remessa #${dados.remessa_id}`;
 
-  let y = desenharHeader(doc, `Relatorio da ${tituloRelatorio}`);
+  let y = desenharHeader(doc, `Relatório da ${tituloRelatorio}`);
 
   // Info cards: Empresa, Operador, Data
   const infos = [];

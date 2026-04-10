@@ -6,6 +6,7 @@
 const colaboradoresRepository = require('../repositories/colaboradores.repository');
 const { validatePagination, extractClienteId, isValidCPF, limparCPF, isValidEmail, isValidDate } = require('../utils/validators');
 const { APIError } = require('../middlewares/errorHandler');
+const { ok, created, paginated } = require('../utils/response');
 const logger = require('../utils/logger');
 const XLSX = require('xlsx');
 
@@ -32,14 +33,11 @@ const listarColaboradores = async (query) => {
 
     logger.info('Colaboradores listados:', { clienteId, total: resultado.total });
 
-    return {
-      success: true,
-      data: resultado.colaboradores,
+    return paginated(resultado.colaboradores, {
       total: resultado.total,
       limit: validLimit,
-      offset: validOffset,
-      page: resultado.page
-    };
+      offset: validOffset
+    });
   } catch (error) {
     logger.error('Erro ao listar colaboradores:', { error: error.message });
     throw new APIError('Erro ao buscar colaboradores', 500);
@@ -54,7 +52,7 @@ const obterSetores = async (clienteId) => {
 
   try {
     const setores = await colaboradoresRepository.buscarSetores(clienteId);
-    return { success: true, data: setores };
+    return ok(setores);
   } catch (error) {
     logger.error('Erro ao obter setores:', { error: error.message });
     throw new APIError('Erro ao buscar setores', 500);
@@ -108,15 +106,12 @@ const processarExcel = async (file, clienteId) => {
       }
     });
 
-    return {
-      success: true,
-      data: {
-        total_importados: colaboradoresProcessados.length,
-        total_erros: erros.length,
-        erros,
-        colaboradores: colaboradoresProcessados
-      }
-    };
+    return ok({
+      total_importados: colaboradoresProcessados.length,
+      total_erros: erros.length,
+      erros,
+      colaboradores: colaboradoresProcessados
+    });
   } catch (error) {
     if (error instanceof APIError) throw error;
     throw new APIError('Erro ao processar arquivo Excel', 400);
@@ -154,7 +149,7 @@ const obterTaxaCliente = async (clienteId) => {
 
   try {
     const taxa = await colaboradoresRepository.buscarTaxaCliente(clienteId);
-    return { success: true, data: { taxa } };
+    return ok({ taxa });
   } catch (error) {
     logger.error('Erro ao obter taxa do cliente:', { error: error.message });
     throw new APIError('Erro ao buscar taxa do cliente', 500);
@@ -200,7 +195,11 @@ const listarTodosColaboradores = async (query) => {
     const resultado = await colaboradoresRepository.buscarTodosColaboradores(
       clienteId, search, limit, offset
     );
-    return { success: true, data: resultado.colaboradores, total: resultado.total };
+    return paginated(resultado.colaboradores, {
+      total: resultado.total,
+      limit,
+      offset
+    });
   } catch (error) {
     logger.error('Erro ao listar todos colaboradores:', { error: error.message });
     throw new APIError('Erro ao buscar colaboradores', 500);
@@ -222,7 +221,7 @@ const obterColaboradorCompleto = async (userId, clienteId) => {
     const categorias = await colaboradoresRepository.buscarCategoriasDoUsuario(userId);
     colaborador.categorias = categorias;
 
-    return { success: true, data: colaborador };
+    return ok(colaborador);
   } catch (error) {
     if (error instanceof APIError) throw error;
     throw new APIError('Erro ao buscar colaborador', 500);
@@ -274,7 +273,7 @@ const criarColaborador = async (dados) => {
     }
 
     logger.info('Colaborador criado:', { id: resultado.id, nome: dados.nome });
-    return { success: true, data: resultado };
+    return created(resultado);
   } catch (error) {
     if (error.code === '23505') {
       throw new APIError('CPF já cadastrado para este cliente', 409);
@@ -345,7 +344,7 @@ const atualizarColaborador = async (userId, clienteId, dados) => {
     }
 
     logger.info('Colaborador atualizado:', { id: userId });
-    return { success: true, data: resultado };
+    return ok(resultado);
   } catch (error) {
     if (error instanceof APIError) throw error;
     throw new APIError('Erro ao atualizar colaborador', 500);
@@ -365,7 +364,7 @@ const alterarSituacao = async (userId, clienteId, novaSituacaoId) => {
     if (!resultado) throw new APIError('Colaborador não encontrado', 404);
 
     logger.info('Situação alterada:', { id: userId, novaSituacao: novaSituacaoId });
-    return { success: true, data: resultado };
+    return ok(resultado);
   } catch (error) {
     if (error instanceof APIError) throw error;
     throw new APIError('Erro ao alterar situação', 500);
@@ -379,7 +378,7 @@ const obterRestaurantes = async (clienteId) => {
   if (!clienteId) throw new APIError('cliente_id é obrigatório', 400);
   try {
     const restaurantes = await colaboradoresRepository.buscarRestaurantes(clienteId);
-    return { success: true, data: restaurantes };
+    return ok(restaurantes);
   } catch (error) {
     throw new APIError('Erro ao buscar restaurantes', 500);
   }
@@ -492,7 +491,7 @@ const processarExcelUsuarios = async (file, clienteId) => {
           nascimento: nascimentoNorm,
           sexo: sexo || null,
           email: email ? email.trim().toLowerCase() : '',
-          celular
+          celular: celular ? celular.replace(/\D/g, '') : ''
         });
       }
     });
@@ -511,17 +510,14 @@ const processarExcelUsuarios = async (file, clienteId) => {
       criados, existentes, erros: erros.length
     });
 
-    return {
-      success: true,
-      data: {
-        total_linhas: dados.length,
-        criados,
-        existentes,
-        total_erros: erros.length,
-        erros,
-        resultados: resultadosInsercao
-      }
-    };
+    return ok({
+      total_linhas: dados.length,
+      criados,
+      existentes,
+      total_erros: erros.length,
+      erros,
+      resultados: resultadosInsercao
+    });
   } catch (error) {
     if (error instanceof APIError) throw error;
     logger.error('Erro ao processar Excel de usuários:', { error: error.message });
@@ -539,7 +535,7 @@ const criarCategoria = async (clienteId, nome) => {
   try {
     const resultado = await colaboradoresRepository.criarCategoria(clienteId, nome.trim());
     logger.info('Categoria criada:', { id: resultado.id, nome: resultado.nome, clienteId });
-    return { success: true, data: resultado };
+    return created(resultado);
   } catch (error) {
     logger.error('Erro ao criar categoria:', { error: error.message });
     throw new APIError('Erro ao criar categoria', 500);
@@ -558,7 +554,7 @@ const deletarCategoria = async (categoriaId, clienteId) => {
     if (!resultado) throw new APIError('Categoria não encontrada', 404);
 
     logger.info('Categoria deletada:', { id: categoriaId, clienteId });
-    return { success: true, data: resultado };
+    return ok(resultado);
   } catch (error) {
     if (error instanceof APIError) throw error;
     logger.error('Erro ao deletar categoria:', { error: error.message });

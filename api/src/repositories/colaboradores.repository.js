@@ -341,7 +341,7 @@ const buscarColaboradorCompleto = async (userId, clienteId) => {
       u.crd_usr_nome AS nome,
       u.crd_usr_cpf AS cpf,
       u.crd_usu_email AS email,
-      u.crd_usr_celular AS celular,
+      u.crd_mot_celular AS celular,
       u.crd_usr_nascimento AS nascimento,
       u.crd_usr_sexo AS sexo,
       u.crd_sit_id AS situacao_id,
@@ -393,7 +393,7 @@ const criarColaborador = async (dados) => {
       crd_usr_nome,
       crd_usr_cpf,
       crd_usu_email,
-      crd_usr_celular,
+      crd_mot_celular,
       crd_usr_nascimento,
       crd_usr_sexo,
       crd_sit_id,
@@ -410,7 +410,7 @@ const criarColaborador = async (dados) => {
     dados.nome,
     dados.cpf,
     dados.email || null,
-    dados.celular || null,
+    dados.celular ? dados.celular.replace(/\D/g, '') : null,
     dados.nascimento || null,
     dados.sexo || null,
     dados.situacao_id || 1,
@@ -435,7 +435,7 @@ const atualizarColaborador = async (userId, clienteId, dados) => {
       crd_usr_nome = $3,
       crd_usr_cpf = $4,
       crd_usu_email = $5,
-      crd_usr_celular = $6,
+      crd_mot_celular = $6,
       crd_usr_nascimento = $7,
       crd_usr_sexo = $8,
       crd_cli_id = $9
@@ -450,7 +450,7 @@ const atualizarColaborador = async (userId, clienteId, dados) => {
     dados.nome,
     dados.cpf,
     dados.email || null,
-    dados.celular || null,
+    dados.celular ? dados.celular.replace(/\D/g, '') : null,
     dados.nascimento || null,
     dados.sexo || null,
     dados.novo_cliente_id || clienteId
@@ -566,7 +566,7 @@ const importarColaboradoresEmLote = async (colaboradores, clienteId) => {
       await client.query(
         `INSERT INTO crd_usuario (
           crd_usr_id, crd_usr_nome, crd_usr_cpf, crd_usu_email,
-          crd_usr_celular, crd_usr_nascimento, crd_usr_sexo,
+          crd_mot_celular, crd_usr_nascimento, crd_usr_sexo,
           crd_sit_id, crd_cli_id, crd_usu_data_inclusao,
           crd_usr_arranjo_fechado, crd_usr_arranjo_aberto
         ) VALUES ($1, $2, $3, $4, $5, $6, $7, 1, $8, CURRENT_TIMESTAMP, true, true)`,
@@ -575,7 +575,7 @@ const importarColaboradoresEmLote = async (colaboradores, clienteId) => {
           colab.nome,
           colab.cpf,
           colab.email || null,
-          colab.celular || null,
+          colab.celular ? colab.celular.replace(/\D/g, '') : null,
           colab.nascimento || null,
           colab.sexo || null,
           clienteId

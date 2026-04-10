@@ -113,6 +113,8 @@ const CreditoForm = ({ clienteId, login = 'sistema' }) => {
           clienteId={clienteId}
           colaboradoresHook={colaboradoresHook}
           onProximo={irParaPreview}
+          onVoltar={voltarParaLista}
+          onFechar={voltarParaLista}
         />
       );
     }

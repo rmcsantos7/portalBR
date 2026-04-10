@@ -5,6 +5,7 @@
 
 const relatoriosRepository = require('../repositories/relatorios.repository');
 const { APIError } = require('../middlewares/errorHandler');
+const { ok } = require('../utils/response');
 
 /**
  * Relatório 1: Recargas no período
@@ -14,14 +15,16 @@ const relatorioRecargasPeriodo = async (clienteId, dataInicio, dataFim) => {
     throw new APIError('Informe data_inicio e data_fim', 400);
   }
 
-  return await relatoriosRepository.buscarRecargasPeriodo(clienteId, dataInicio, dataFim);
+  const data = await relatoriosRepository.buscarRecargasPeriodo(clienteId, dataInicio, dataFim);
+  return ok(data);
 };
 
 /**
  * Relatório 2: Colaboradores cadastrados
  */
 const relatorioColaboradores = async (clienteId) => {
-  return await relatoriosRepository.buscarColaboradoresCadastrados(clienteId);
+  const data = await relatoriosRepository.buscarColaboradoresCadastrados(clienteId);
+  return ok(data);
 };
 
 /**
@@ -37,14 +40,16 @@ const relatorioHistoricoColaborador = async (clienteId, colaboradorId, dataInici
     throw new APIError('Informe data_inicio e data_fim', 400);
   }
 
-  return await relatoriosRepository.buscarHistoricoColaborador(clienteId, colabId, dataInicio, dataFim);
+  const data = await relatoriosRepository.buscarHistoricoColaborador(clienteId, colabId, dataInicio, dataFim);
+  return ok(data);
 };
 
 /**
  * Lista colaboradores para seleção no relatório 3
  */
 const listarColaboradoresRelatorio = async (clienteId, search) => {
-  return await relatoriosRepository.listarColaboradoresParaRelatorio(clienteId, search || '');
+  const data = await relatoriosRepository.listarColaboradoresParaRelatorio(clienteId, search || '');
+  return ok(data);
 };
 
 module.exports = {

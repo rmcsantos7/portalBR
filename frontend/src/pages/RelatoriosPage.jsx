@@ -107,14 +107,14 @@ const RelatoriosPage = () => {
   // ---- GERAR RELATÓRIOS ----
 
   const gerarRelRecargasPeriodo = async () => {
-    if (!recDataInicio || !recDataFim) { setErro('Preencha as datas do periodo'); return; }
+    if (!recDataInicio || !recDataFim) { setErro('Preencha as datas do período'); return; }
     setLoadingRel('recargas'); setErro(null); setSucesso(null);
     try {
       const res = await relatoriosAPI.recargasPeriodo(clienteId, recDataInicio, recDataFim);
       gerarPdfRecargasPeriodo(res.data.data);
-      setSucesso('Relatorio de Recargas gerado com sucesso!');
+      setSucesso('Relatório de Recargas gerado com sucesso!');
     } catch (err) {
-      setErro(err.response?.data?.error || 'Erro ao gerar relatorio');
+      setErro(err.response?.data?.error || 'Erro ao gerar relatório');
     } finally {
       setLoadingRel(null);
     }
@@ -125,9 +125,9 @@ const RelatoriosPage = () => {
     try {
       const res = await relatoriosAPI.colaboradores(clienteId);
       gerarPdfColaboradores(res.data.data);
-      setSucesso('Relatorio de Colaboradores gerado com sucesso!');
+      setSucesso('Relatório de Colaboradores gerado com sucesso!');
     } catch (err) {
-      setErro(err.response?.data?.error || 'Erro ao gerar relatorio');
+      setErro(err.response?.data?.error || 'Erro ao gerar relatório');
     } finally {
       setLoadingRel(null);
     }
@@ -135,14 +135,14 @@ const RelatoriosPage = () => {
 
   const gerarRelHistoricoColaborador = async () => {
     if (!histColabId) { setErro('Selecione um colaborador'); return; }
-    if (!histDataInicio || !histDataFim) { setErro('Preencha as datas do periodo'); return; }
+    if (!histDataInicio || !histDataFim) { setErro('Preencha as datas do período'); return; }
     setLoadingRel('historico'); setErro(null); setSucesso(null);
     try {
       const res = await relatoriosAPI.historicoColaborador(clienteId, histColabId, histDataInicio, histDataFim);
       gerarPdfHistoricoColaborador(res.data.data);
-      setSucesso('Historico do Colaborador gerado com sucesso!');
+      setSucesso('Histórico do Colaborador gerado com sucesso!');
     } catch (err) {
-      setErro(err.response?.data?.error || 'Erro ao gerar relatorio');
+      setErro(err.response?.data?.error || 'Erro ao gerar relatório');
     } finally {
       setLoadingRel(null);
     }
@@ -213,7 +213,7 @@ const RelatoriosPage = () => {
 
         <div style={estilos.formRow}>
           <div style={estilos.formGroup}>
-            <label style={estilos.label}>Data Inicio</label>
+            <label style={estilos.label}>Data Início</label>
             <input type="date" value={recDataInicio} onChange={e => setRecDataInicio(e.target.value)} style={estilos.input} />
           </div>
           <div style={estilos.formGroup}>
@@ -334,7 +334,7 @@ const RelatoriosPage = () => {
           </div>
 
           <div style={estilos.formGroup}>
-            <label style={estilos.label}>Data Inicio</label>
+            <label style={estilos.label}>Data Início</label>
             <input type="date" value={histDataInicio} onChange={e => setHistDataInicio(e.target.value)} style={estilos.input} />
           </div>
           <div style={estilos.formGroup}>

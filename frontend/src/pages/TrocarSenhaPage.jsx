@@ -75,7 +75,7 @@ function TrocarSenhaPage() {
 
       {/* Card */}
       <form className="login-card" onSubmit={handleSubmit}>
-        <h2>trocar senha</h2>
+        <h2>Alterar Senha</h2>
         <p style={{ color: 'rgba(255,255,255,0.7)', fontSize: '13px', margin: '0 0 20px', lineHeight: '1.5' }}>
           Sua senha é temporária. Crie uma nova senha para continuar.
         </p>

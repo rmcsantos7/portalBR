@@ -64,9 +64,11 @@ function EsqueciSenhaPage() {
       <div className="login-card">
         {!sucesso ? (
           <form onSubmit={handleSubmit}>
-            <h2>recuperar senha</h2>
+            <h2>Recuperar Senha</h2>
             <p style={{ color: 'rgba(255,255,255,0.7)', fontSize: '13px', margin: '0 0 20px', lineHeight: '1.5' }}>
-              Informe o email cadastrado na sua conta. Enviaremos uma senha temporária.
+              Informe o e-mail cadastrado na sua conta.
+              <br />
+              Enviaremos uma senha temporária para redefinição de senha.
             </p>
 
             {erro && <div className="login-error">{erro}</div>}
@@ -94,8 +96,8 @@ function EsqueciSenhaPage() {
           </form>
         ) : (
           <div style={{ textAlign: 'center' }}>
-            <div style={{ fontSize: '48px', marginBottom: '16px' }}>&#9993;</div>
-            <h2 style={{ fontSize: '22px' }}>email enviado</h2>
+            <div style={{ fontSize: '48px', marginBottom: '16px', color: '#fff' }}>&#9993;</div>
+            <h2 style={{ fontSize: '22px' }}>E-mail enviado</h2>
             <p style={{ color: 'rgba(255,255,255,0.7)', fontSize: '13px', margin: '0 0 24px', lineHeight: '1.5' }}>
               Se o email estiver cadastrado, você receberá uma senha temporária em instantes.
               Verifique sua caixa de entrada e spam.

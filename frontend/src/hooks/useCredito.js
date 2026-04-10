@@ -85,7 +85,7 @@ export const useCredito = (clienteId, login = 'sistema') => {
 
       return dados;
     } catch (err) {
-      const mensagem = err.response?.data?.error || 'Erro ao gerar crédito';
+      const mensagem = err.response?.data?.error || 'Erro ao gerar recarga';
       setCreditoError(mensagem);
       console.error('Erro ao gerar:', err);
       return false;

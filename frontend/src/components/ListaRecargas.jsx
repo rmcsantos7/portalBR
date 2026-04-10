@@ -15,6 +15,9 @@ const ListaRecargas = ({ clienteId, onNovaRecarga }) => {
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(0);
   const [remessaAberta, setRemessaAberta] = useState(null);
+  const [qrCodeModal, setQrCodeModal] = useState(null);
+  const [cancelModal, setCancelModal] = useState(null);
+  const [cancelando, setCancelando] = useState(false);
   const limit = 15;
 
   const carregarRecargas = async () => {
@@ -69,6 +72,22 @@ const ListaRecargas = ({ clienteId, onNovaRecarga }) => {
   const totalFiltrados = recargasFiltradas.length;
   const totalPaginasFiltradas = Math.ceil(totalFiltrados / limit);
   const recargasPagina = recargasFiltradas.slice(page * limit, (page + 1) * limit);
+
+  const handleCancelarRemessa = async () => {
+    if (!cancelModal) return;
+    setCancelando(true);
+    try {
+      await creditosAPI.cancelarRemessa(clienteId, cancelModal.remessa_id);
+      alert('Remessa cancelada com sucesso!');
+      setCancelModal(null);
+      carregarRecargas();
+    } catch (err) {
+      const msg = err.response?.data?.message || err.response?.data?.error || 'Erro ao cancelar remessa';
+      alert(msg);
+    } finally {
+      setCancelando(false);
+    }
+  };
 
   // Calcula líquido a partir do bruto e taxa
   const calcularLiquido = (valorBruto, taxa) => {
@@ -160,6 +179,7 @@ const ListaRecargas = ({ clienteId, onNovaRecarga }) => {
                   <th className="align-right" style={{ width: '110px' }}>Bruto</th>
                   <th className="align-right" style={{ width: '90px' }}>Tar. Conv.</th>
                   <th className="align-right" style={{ width: '120px' }}>Líquido</th>
+                  <th style={{ width: '100px', textAlign: 'center' }}>Boleto</th>
                 </tr>
               </thead>
               <tbody>
@@ -209,6 +229,52 @@ const ListaRecargas = ({ clienteId, onNovaRecarga }) => {
                       <td className="align-right" style={{ fontWeight: '700', color: '#491d4e', fontSize: '0.95rem' }}>
                         {formatarMoeda(valorLiquido)}
                       </td>
+                      <td style={{ textAlign: 'center' }} onClick={(e) => e.stopPropagation()}>
+                        {r.nota_fiscal_id ? (
+                          <div style={{ display: 'flex', gap: '4px', justifyContent: 'center' }}>
+                            <button
+                              title="QR Code PIX"
+                              onClick={() => setQrCodeModal(r)}
+                              style={{
+                                background: '#f3e8ff', border: '1px solid #d8b4fe', borderRadius: '6px',
+                                padding: '5px 7px', cursor: 'pointer', display: 'flex', alignItems: 'center'
+                              }}
+                            >
+                              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#4A1D4F" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                <rect x="3" y="3" width="7" height="7" /><rect x="14" y="3" width="7" height="7" /><rect x="3" y="14" width="7" height="7" /><rect x="14" y="14" width="7" height="7" />
+                              </svg>
+                            </button>
+                            <a
+                              href={creditosAPI.getBoletoPdfUrl(r.nota_fiscal_id)}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              title="Visualizar Boleto PDF"
+                              style={{
+                                background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: '6px',
+                                padding: '5px 7px', cursor: 'pointer', display: 'flex', alignItems: 'center'
+                              }}
+                            >
+                              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#059669" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                <path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/>
+                              </svg>
+                            </a>
+                            <button
+                              title="Cancelar Remessa"
+                              onClick={() => setCancelModal(r)}
+                              style={{
+                                background: '#fef2f2', border: '1px solid #fecaca', borderRadius: '6px',
+                                padding: '5px 7px', cursor: 'pointer', display: 'flex', alignItems: 'center'
+                              }}
+                            >
+                              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#dc2626" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                <circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/>
+                              </svg>
+                            </button>
+                          </div>
+                        ) : (
+                          <span style={{ fontSize: '0.75rem', color: 'var(--cinza-400)' }}>-</span>
+                        )}
+                      </td>
                     </tr>
                   );
                 })}
@@ -249,6 +315,163 @@ const ListaRecargas = ({ clienteId, onNovaRecarga }) => {
             </div>
           )}
         </>
+      )}
+
+      {/* Modal QR Code PIX */}
+      {qrCodeModal && (
+        <div style={{
+          position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex',
+          alignItems: 'center', justifyContent: 'center', zIndex: 1000
+        }} onClick={() => setQrCodeModal(null)}>
+          <div style={{
+            background: '#fff', borderRadius: '20px', padding: '36px 32px',
+            maxWidth: '440px', width: '90%', textAlign: 'center', position: 'relative'
+          }} onClick={(e) => e.stopPropagation()}>
+            <button onClick={() => setQrCodeModal(null)} style={{
+              position: 'absolute', top: '12px', right: '16px', background: 'none',
+              border: 'none', fontSize: '1.4rem', cursor: 'pointer', color: '#9ca3af'
+            }}>&times;</button>
+
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', marginBottom: '12px' }}>
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#4A1D4F" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <rect x="3" y="3" width="7" height="7" /><rect x="14" y="3" width="7" height="7" /><rect x="3" y="14" width="7" height="7" /><rect x="14" y="14" width="7" height="7" />
+              </svg>
+              <h3 style={{ margin: 0, fontSize: '1.1rem', color: '#4A1D4F' }}>Pagamento via PIX</h3>
+            </div>
+
+            <p style={{ margin: '0 0 4px', fontSize: '0.8rem', color: '#6b7280' }}>
+              Remessa #{qrCodeModal.remessa_id} &middot; {qrCodeModal.restaurante}
+            </p>
+
+            <div style={{ fontSize: '1.8rem', fontWeight: '800', color: '#4A1D4F', marginBottom: '20px' }}>
+              {formatarMoeda(qrCodeModal.valor_bruto)}
+            </div>
+
+            {qrCodeModal.nota_fiscal_id && (
+              <div style={{ marginBottom: '16px' }}>
+                <img
+                  src={creditosAPI.getBoletoQrCodeUrl(qrCodeModal.nota_fiscal_id)}
+                  alt="QR Code PIX"
+                  style={{ width: '220px', height: '220px', borderRadius: '12px', border: '1px solid #e5e7eb', padding: '8px', background: '#fff' }}
+                />
+              </div>
+            )}
+
+            {qrCodeModal.boleto_pix_qrcode && (
+              <div style={{ marginBottom: '16px' }}>
+                <div style={{ fontSize: '0.75rem', color: '#6b7280', marginBottom: '6px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                  PIX Copia e Cola
+                </div>
+                <div style={{
+                  background: '#f9fafb', border: '1px solid #e5e7eb', borderRadius: '8px',
+                  padding: '10px 12px', fontSize: '0.7rem', fontFamily: 'monospace',
+                  wordBreak: 'break-all', color: '#374151', maxHeight: '70px', overflow: 'auto', lineHeight: '1.4'
+                }}>
+                  {qrCodeModal.boleto_pix_qrcode}
+                </div>
+                <button
+                  onClick={() => {
+                    navigator.clipboard.writeText(qrCodeModal.boleto_pix_qrcode);
+                    alert('Código PIX copiado!');
+                  }}
+                  style={{
+                    marginTop: '10px', padding: '10px 24px', fontSize: '0.85rem', fontWeight: '600',
+                    color: '#fff', background: '#4A1D4F', border: 'none', borderRadius: '8px', cursor: 'pointer'
+                  }}
+                >
+                  Copiar código PIX
+                </button>
+              </div>
+            )}
+
+            {qrCodeModal.boleto_linha_digitavel && (
+              <div style={{ marginBottom: '12px' }}>
+                <div style={{ fontSize: '0.75rem', color: '#6b7280', marginBottom: '4px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                  Linha Digitável
+                </div>
+                <div style={{
+                  background: '#f9fafb', border: '1px solid #e5e7eb', borderRadius: '8px',
+                  padding: '8px 12px', fontSize: '0.78rem', fontFamily: 'monospace', color: '#374151'
+                }}>
+                  {qrCodeModal.boleto_linha_digitavel}
+                </div>
+              </div>
+            )}
+
+            {qrCodeModal.boleto_status && (
+              <div style={{ fontSize: '0.78rem', color: '#6b7280', marginTop: '8px' }}>
+                Status: <span style={{
+                  fontWeight: '600',
+                  color: qrCodeModal.boleto_status === 'paid' ? '#059669' : qrCodeModal.boleto_status === 'waiting' ? '#d97706' : '#6b7280'
+                }}>
+                  {qrCodeModal.boleto_status === 'waiting' ? 'Aguardando pagamento' : qrCodeModal.boleto_status === 'paid' ? 'Pago' : qrCodeModal.boleto_status}
+                </span>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Modal Confirmação de Cancelamento */}
+      {cancelModal && (
+        <div style={{
+          position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex',
+          alignItems: 'center', justifyContent: 'center', zIndex: 1000
+        }} onClick={() => !cancelando && setCancelModal(null)}>
+          <div style={{
+            background: '#fff', borderRadius: '20px', padding: '36px 32px',
+            maxWidth: '440px', width: '90%', textAlign: 'center', position: 'relative'
+          }} onClick={(e) => e.stopPropagation()}>
+            <div style={{
+              width: '56px', height: '56px', borderRadius: '50%',
+              background: '#fef2f2', display: 'flex', alignItems: 'center', justifyContent: 'center',
+              margin: '0 auto 16px'
+            }}>
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#dc2626" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>
+                <line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
+              </svg>
+            </div>
+
+            <h3 style={{ margin: '0 0 8px', fontSize: '1.1rem', color: '#111827' }}>
+              Cancelar Remessa #{cancelModal.remessa_id}?
+            </h3>
+
+            <p style={{ margin: '0 0 8px', color: '#6b7280', fontSize: '0.88rem' }}>
+              <strong>{cancelModal.restaurante}</strong> &middot; {formatarMoeda(cancelModal.valor_bruto)}
+            </p>
+
+            <p style={{ margin: '0 0 24px', color: '#dc2626', fontSize: '0.82rem', fontWeight: '600' }}>
+              Esta ação não pode ser desfeita!
+            </p>
+
+            <div style={{ display: 'flex', gap: '12px', justifyContent: 'center' }}>
+              <button
+                onClick={() => setCancelModal(null)}
+                disabled={cancelando}
+                style={{
+                  padding: '10px 24px', fontSize: '0.88rem', fontWeight: '500',
+                  color: '#374151', background: '#f3f4f6', border: '1px solid #d1d5db',
+                  borderRadius: '8px', cursor: 'pointer'
+                }}
+              >
+                Não, manter
+              </button>
+              <button
+                onClick={handleCancelarRemessa}
+                disabled={cancelando}
+                style={{
+                  padding: '10px 24px', fontSize: '0.88rem', fontWeight: '600',
+                  color: '#fff', background: '#dc2626', border: 'none',
+                  borderRadius: '8px', cursor: cancelando ? 'not-allowed' : 'pointer',
+                  opacity: cancelando ? 0.7 : 1
+                }}
+              >
+                {cancelando ? 'Cancelando...' : 'Sim, cancelar tudo'}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* Vazio */}

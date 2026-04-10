@@ -84,8 +84,103 @@ const obterDetalheRemessa = asyncHandler(async (req, res) => {
   return res.status(200).json(resultado);
 });
 
+/**
+ * GET /api/creditos/nota/:nota_id/pdf
+ * Proxy para hub-bass: retorna PDF do boleto
+ */
+const obterBoletoPdf = asyncHandler(async (req, res) => {
+  const { nota_id } = req.params;
+  const notaId = parseInt(nota_id);
+  if (!notaId || notaId <= 0) {
+    throw new APIError('nota_id inválido', 400);
+  }
+
+  const baseUrl = process.env.BASE_URL_HUB_BAAS || 'http://localhost:5003';
+  const idOperacao = process.env.HUB_BAAS_ID_OPERACAO || 'BOLETO_EFI';
+  const token = process.env.HUB_BAAS_TOKEN || '';
+  const url = `${baseUrl}/efi/V1/boleto/${idOperacao}/${notaId}/pdf`;
+
+  const headers = {};
+  if (token) headers['Authorization'] = `Bearer ${token}`;
+
+  const response = await fetch(url, { headers });
+  if (!response.ok) {
+    throw new APIError('Erro ao obter PDF do boleto', response.status);
+  }
+
+  res.setHeader('Content-Type', response.headers.get('content-type') || 'application/pdf');
+  res.setHeader('Content-Disposition', `inline; filename="boleto-${notaId}.pdf"`);
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
+
+  const buffer = await response.arrayBuffer();
+  return res.send(Buffer.from(buffer));
+});
+
+/**
+ * GET /api/creditos/nota/:nota_id/qrcode
+ * Proxy para hub-bass: retorna imagem QR Code
+ */
+const obterBoletoQrCode = asyncHandler(async (req, res) => {
+  const { nota_id } = req.params;
+  const notaId = parseInt(nota_id);
+  if (!notaId || notaId <= 0) {
+    throw new APIError('nota_id inválido', 400);
+  }
+
+  const baseUrl = process.env.BASE_URL_HUB_BAAS || 'http://localhost:5003';
+  const idOperacao = process.env.HUB_BAAS_ID_OPERACAO || 'BOLETO_EFI';
+  const token = process.env.HUB_BAAS_TOKEN || '';
+  const url = `${baseUrl}/efi/V1/boleto/${idOperacao}/${notaId}/qrcode`;
+
+  const headers = {};
+  if (token) headers['Authorization'] = `Bearer ${token}`;
+
+  const response = await fetch(url, { headers });
+  if (!response.ok) {
+    throw new APIError('Erro ao obter QR Code', response.status);
+  }
+
+  const contentType = response.headers.get('content-type') || 'image/svg+xml';
+  res.setHeader('Content-Type', contentType);
+  res.setHeader('Cache-Control', 'public, max-age=3600');
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
+
+  const buffer = await response.arrayBuffer();
+  return res.send(Buffer.from(buffer));
+});
+
+/**
+ * DELETE /api/creditos/remessa/:remessa_id?cliente_id=1
+ * Cancela remessa: cancela boleto na EFI + exclui créditos, remessa e nota fiscal
+ */
+const cancelarRemessa = asyncHandler(async (req, res) => {
+  const { cliente_id } = req.query;
+  const { remessa_id } = req.params;
+
+  const clienteId = extractClienteId(cliente_id);
+  if (!clienteId) {
+    throw new APIError('cliente_id inválido ou não fornecido', 400, { campo: 'cliente_id' });
+  }
+
+  const remessaId = parseInt(remessa_id);
+  if (!remessaId || remessaId <= 0) {
+    throw new APIError('remessa_id inválido', 400, { campo: 'remessa_id' });
+  }
+
+  const resultado = await creditosService.cancelarRemessa(remessaId, clienteId);
+
+  logger.info('Remessa cancelada via API:', { clienteId, remessaId });
+
+  return res.status(200).json(resultado);
+});
+
 module.exports = {
   gerarCredito,
   obterHistorico,
-  obterDetalheRemessa
+  obterDetalheRemessa,
+  obterBoletoPdf,
+  obterBoletoQrCode,
+  cancelarRemessa
 };
