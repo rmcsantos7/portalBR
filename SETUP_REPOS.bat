@@ -18,7 +18,7 @@ if not exist .git (
     git remote add origin https://cezarfelipe18@bitbucket.org/cezarfelipe18/backend-gerarcredito-br.git
 )
 git add -A
-git commit -m "feat: titulo remessa, suporte backend campo titulo"
+git commit -m "fix: celular sem mascara coluna crd_mot_celular, ajustes plataforma v2"
 echo.
 echo [2/4] Fazendo push da API...
 git push -u origin main --force
@@ -34,7 +34,7 @@ if not exist .git (
     git remote add origin https://cezarfelipe18@bitbucket.org/cezarfelipe18/front-gerarcredito-br.git
 )
 git add -A
-git commit -m "feat: alterar senha no portal, fix filtro dashboard, valor bruto na tabela, titulo remessa"
+git commit -m "fix: celular sem mascara, remove resumo dashboard, ajustes plataforma v2"
 echo.
 echo [4/4] Fazendo push do Frontend...
 git push -u origin main --force

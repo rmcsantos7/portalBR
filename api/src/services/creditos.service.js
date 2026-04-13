@@ -63,11 +63,22 @@ const validarPayloadCredito = (payload, clienteId) => {
   // Título da recarga (opcional, máx 40 chars)
   const titulo = payload.titulo ? String(payload.titulo).trim().substring(0, 40) : null;
 
+  // Data de disponibilização (padrão: hoje + 1)
+  let dataDisponibilizacao = null;
+  if (payload.dataDisponibilizacao) {
+    const data = new Date(payload.dataDisponibilizacao + 'T00:00:00');
+    if (isNaN(data.getTime())) {
+      throw new APIError('Data de disponibilização inválida', 400);
+    }
+    dataDisponibilizacao = payload.dataDisponibilizacao;
+  }
+
   return {
     colaboradores,
     clienteId,
     modoCpf,
-    titulo
+    titulo,
+    dataDisponibilizacao
   };
 };
 
@@ -77,14 +88,14 @@ const validarPayloadCredito = (payload, clienteId) => {
  * 1. Gera remessa_id via sequence (nextval)
  * 2. Insere remessa com (id, data, login, cli_id) — apenas 4 campos
  * 3. Para cada colaborador: insere crédito com valor direto (sem taxa)
- *    com crd_pro_id=999 e crd_sit_id=1
+ *    com crd_pro_id=201 e crd_sit_id=2, usando dataDisponibilizacao em crd_usu_data_credito
  *
  * @param {object} payload - Dados validados
  * @param {string} login - Login do usuário que está gerando
  * @returns {Promise<object>} Resultado da geração
  */
 const gerarCredito = async (payload, login = 'sistema') => {
-  const { colaboradores, clienteId, modoCpf, titulo } = payload;
+  const { colaboradores, clienteId, modoCpf, titulo, dataDisponibilizacao } = payload;
   const client = await db.getClient();
 
   try {
@@ -152,7 +163,8 @@ const gerarCredito = async (payload, login = 'sistema') => {
         cpf,
         remessaId,
         clienteId,
-        login
+        login,
+        dataDisponibilizacao
       );
 
       creditosCriados.push({

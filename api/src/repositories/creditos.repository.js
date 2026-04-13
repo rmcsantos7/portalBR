@@ -58,9 +58,13 @@ const criarRemessa = async (client, clienteId, login, titulo = null) => {
  * @param {number} remessaId - ID da remessa (crd_usucrerem_id)
  * @param {number} clienteId - ID do cliente (crd_cli_id)
  * @param {string} login - Login do usuário que criou (crd_usu_login)
+ * @param {string|null} dataDisponibilizacao - Data de disponibilização (YYYY-MM-DD), padrão CURRENT_DATE
  * @returns {Promise<number>} ID do crédito criado
  */
-const inserirCredito = async (client, usuarioId, valor, cpf, remessaId, clienteId, login) => {
+const inserirCredito = async (client, usuarioId, valor, cpf, remessaId, clienteId, login, dataDisponibilizacao = null) => {
+  const dataCredito = dataDisponibilizacao || 'CURRENT_DATE';
+  const usaParametro = !!dataDisponibilizacao;
+
   const sql = `
     INSERT INTO crd_usuario_credito (
       crd_usr_id,
@@ -73,19 +77,15 @@ const inserirCredito = async (client, usuarioId, valor, cpf, remessaId, clienteI
       crd_usu_data_import,
       crd_usucrerem_id,
       crd_sit_id
-    ) VALUES ($1, 999, $2, CURRENT_DATE, $3, $4, $5, CURRENT_DATE, $6, 1)
+    ) VALUES ($1, 201, $2, ${usaParametro ? '$7' : 'CURRENT_DATE'}, $3, $4, $5, CURRENT_DATE, $6, 2)
     RETURNING crd_usucre_id
   `;
 
+  const params = [usuarioId, valor, cpf, clienteId, login, remessaId];
+  if (usaParametro) params.push(dataDisponibilizacao);
+
   try {
-    const result = await client.query(sql, [
-      usuarioId,
-      valor,
-      cpf,
-      clienteId,
-      login,
-      remessaId
-    ]);
+    const result = await client.query(sql, params);
     return result.rows[0].crd_usucre_id;
   } catch (error) {
     logger.error('Erro ao inserir crédito:', { error: error.message });

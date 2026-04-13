@@ -30,6 +30,11 @@ const PreviewCredito = ({ clienteId, colaboradores: colaboradoresIniciais, onVol
   );
 
   const [tituloRecarga, setTituloRecarga] = useState('');
+  const [dataDisponibilizacao, setDataDisponibilizacao] = useState(() => {
+    const amanha = new Date();
+    amanha.setDate(amanha.getDate() + 1);
+    return amanha.toISOString().split('T')[0];
+  });
   const [sucesso, setSucesso] = useState(null);
 
   /**
@@ -86,6 +91,7 @@ const PreviewCredito = ({ clienteId, colaboradores: colaboradoresIniciais, onVol
 
     const payload = {
       titulo: tituloRecarga.trim() || null,
+      dataDisponibilizacao: dataDisponibilizacao || null,
       colaboradores: colaboradores.map(c => ({
         id: c.id || 0,
         cpf: c.cpf || '',
@@ -395,22 +401,39 @@ const PreviewCredito = ({ clienteId, colaboradores: colaboradoresIniciais, onVol
         </div>
       )}
 
-      {/* Título da recarga */}
-      <div style={{ marginBottom: '16px' }}>
-        <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: '600', color: 'var(--cinza-700)', marginBottom: '6px' }}>
-          Título da recarga <span style={{ fontWeight: '400', color: 'var(--cinza-500)' }}>(opcional, máx. 40 caracteres)</span>
-        </label>
-        <input
-          type="text"
-          maxLength={40}
-          placeholder="Ex: Recarga mensal março"
-          value={tituloRecarga}
-          onChange={(e) => setTituloRecarga(e.target.value)}
-          disabled={creditoHook.creditoLoading}
-          style={{ width: '100%', maxWidth: '400px', padding: '8px 12px', borderRadius: '8px', fontSize: '0.9rem' }}
-        />
-        <div style={{ fontSize: '0.72rem', color: 'var(--cinza-500)', marginTop: '4px' }}>
-          {tituloRecarga.length}/40
+      {/* Título da recarga e Data de disponibilização */}
+      <div style={{ display: 'flex', gap: '16px', marginBottom: '16px', flexWrap: 'wrap' }}>
+        <div style={{ flex: '1', minWidth: '250px' }}>
+          <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: '600', color: 'var(--cinza-700)', marginBottom: '6px' }}>
+            Título da recarga <span style={{ fontWeight: '400', color: 'var(--cinza-500)' }}>(opcional, máx. 40 caracteres)</span>
+          </label>
+          <input
+            type="text"
+            maxLength={40}
+            placeholder="Ex: Recarga mensal março"
+            value={tituloRecarga}
+            onChange={(e) => setTituloRecarga(e.target.value)}
+            disabled={creditoHook.creditoLoading}
+            style={{ width: '100%', maxWidth: '400px', padding: '8px 12px', borderRadius: '8px', fontSize: '0.9rem' }}
+          />
+          <div style={{ fontSize: '0.72rem', color: 'var(--cinza-500)', marginTop: '4px' }}>
+            {tituloRecarga.length}/40
+          </div>
+        </div>
+        <div style={{ minWidth: '200px' }}>
+          <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: '600', color: 'var(--cinza-700)', marginBottom: '6px' }}>
+            Data de disponibilização
+          </label>
+          <input
+            type="date"
+            value={dataDisponibilizacao}
+            onChange={(e) => setDataDisponibilizacao(e.target.value)}
+            disabled={creditoHook.creditoLoading}
+            style={{ padding: '8px 12px', borderRadius: '8px', fontSize: '0.9rem' }}
+          />
+          <div style={{ fontSize: '0.72rem', color: 'var(--cinza-500)', marginTop: '4px' }}>
+            Padrão: dia seguinte
+          </div>
         </div>
       </div>
 
