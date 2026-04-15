@@ -103,6 +103,50 @@ const buscarUsuarioPorEmail = async (email) => {
 };
 
 /**
+ * Lista todos os clientes (usado por administradores)
+ */
+const listarClientes = async () => {
+  const sql = `
+    SELECT
+      crd_cli_id,
+      crd_cli_nome_fantasia,
+      crd_cli_cnpj
+    FROM crd_cliente
+    ORDER BY crd_cli_nome_fantasia ASC
+  `;
+
+  try {
+    const result = await db.query(sql);
+    return result.rows;
+  } catch (error) {
+    logger.error('Erro ao listar clientes:', { error: error.message });
+    throw error;
+  }
+};
+
+/**
+ * Busca um cliente pelo id (para validação de troca por admin)
+ */
+const buscarClientePorId = async (clienteId) => {
+  const sql = `
+    SELECT
+      crd_cli_id,
+      crd_cli_nome_fantasia,
+      crd_cli_cnpj
+    FROM crd_cliente
+    WHERE crd_cli_id = $1
+  `;
+
+  try {
+    const result = await db.query(sql, [clienteId]);
+    return result.rows[0] || null;
+  } catch (error) {
+    logger.error('Erro ao buscar cliente por id:', { error: error.message });
+    throw error;
+  }
+};
+
+/**
  * Busca configuração SMTP da tabela crd_dados_sensiveis
  */
 const buscarConfigSMTP = async (pk = 1) => {
@@ -133,5 +177,7 @@ module.exports = {
   atualizarSenhaComFlag,
   buscarUsuarioPorEmail,
   buscarUsuarioPorCodigo,
-  buscarConfigSMTP
+  buscarConfigSMTP,
+  listarClientes,
+  buscarClientePorId
 };

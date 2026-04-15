@@ -45,6 +45,16 @@ api.interceptors.response.use(
 );
 
 /**
+ * Auth API — endpoints auxiliares de autenticação
+ */
+export const authAPI = {
+  /** Lista clientes disponíveis (apenas administradores) */
+  listarClientes: () => api.get('/auth/clientes'),
+  /** Troca o cliente ativo do admin; retorna novo token */
+  trocarCliente: (clienteId) => api.post('/auth/trocar-cliente', { cliente_id: clienteId })
+};
+
+/**
  * Colaboradores API (para tela de Créditos)
  */
 export const colaboradoresAPI = {

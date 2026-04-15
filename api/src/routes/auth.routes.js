@@ -19,4 +19,10 @@ router.get('/me', authMiddleware, authController.me);
 // Troca de senha (protegido)
 router.post('/trocar-senha', authMiddleware, authController.trocarSenha);
 
+// Lista de clientes — apenas administradores (protegido)
+router.get('/clientes', authMiddleware, authController.listarClientes);
+
+// Troca cliente ativo do admin — retorna novo JWT (protegido)
+router.post('/trocar-cliente', authMiddleware, authController.trocarCliente);
+
 module.exports = router;

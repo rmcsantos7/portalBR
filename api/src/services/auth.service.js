@@ -257,9 +257,99 @@ const trocarSenha = async (usrCodigo, senhaAtual, novaSenha) => {
   }
 };
 
+/**
+ * Lista clientes disponíveis (apenas para administradores)
+ */
+const listarClientes = async (usuario) => {
+  const isAdmin = usuario?.administrador === true || usuario?.usr_administrador === 'S';
+  if (!isAdmin) {
+    throw new APIError('Acesso negado: apenas administradores podem listar clientes', 403);
+  }
+
+  try {
+    const clientes = await authRepository.listarClientes();
+    return ok(clientes.map(c => ({
+      crd_cli_id: c.crd_cli_id,
+      crd_cli_nome_fantasia: c.crd_cli_nome_fantasia,
+      crd_cli_cnpj: c.crd_cli_cnpj
+    })));
+  } catch (error) {
+    if (error instanceof APIError) throw error;
+    logger.error('Erro ao listar clientes:', { error: error.message });
+    throw new APIError('Erro ao listar clientes', 500);
+  }
+};
+
+/**
+ * Troca o cliente ativo (apenas administradores).
+ * Gera um novo token JWT com o novo crd_cli_id.
+ */
+const trocarCliente = async (usuario, novoClienteId) => {
+  const isAdmin = usuario?.administrador === true || usuario?.usr_administrador === 'S';
+  if (!isAdmin) {
+    throw new APIError('Acesso negado: apenas administradores podem trocar de cliente', 403);
+  }
+
+  if (!novoClienteId) {
+    throw new APIError('cliente_id é obrigatório', 400);
+  }
+
+  try {
+    const cliente = await authRepository.buscarClientePorId(novoClienteId);
+    if (!cliente) {
+      throw new APIError('Cliente não encontrado', 404);
+    }
+
+    const usuarioDb = await authRepository.buscarUsuarioPorCodigo(usuario.codigo || usuario.usr_codigo);
+    if (!usuarioDb) {
+      throw new APIError('Usuário não encontrado', 404);
+    }
+
+    const token = jwt.sign(
+      {
+        usr_codigo: usuarioDb.usr_codigo,
+        usr_login: usuarioDb.usr_login,
+        usr_nome: usuarioDb.usr_nome,
+        crd_cli_id: cliente.crd_cli_id,
+        cliente_nome: cliente.crd_cli_nome_fantasia,
+        cliente_cnpj: cliente.crd_cli_cnpj,
+        usr_administrador: usuarioDb.usr_administrador,
+        senha_temporaria: false
+      },
+      JWT_SECRET,
+      { expiresIn: JWT_EXPIRES_IN }
+    );
+
+    logger.info('Admin trocou de cliente:', {
+      usr_codigo: usuarioDb.usr_codigo,
+      novoClienteId: cliente.crd_cli_id
+    });
+
+    return ok({
+      token,
+      usuario: {
+        usr_codigo: usuarioDb.usr_codigo,
+        usr_login: usuarioDb.usr_login,
+        usr_nome: usuarioDb.usr_nome,
+        usr_email: usuarioDb.usr_email,
+        crd_cli_id: cliente.crd_cli_id,
+        cliente_nome: cliente.crd_cli_nome_fantasia,
+        cliente_cnpj: cliente.crd_cli_cnpj,
+        usr_administrador: usuarioDb.usr_administrador
+      }
+    }, 'Cliente alterado com sucesso');
+  } catch (error) {
+    if (error instanceof APIError) throw error;
+    logger.error('Erro ao trocar cliente:', { error: error.message });
+    throw new APIError('Erro ao trocar cliente', 500);
+  }
+};
+
 module.exports = {
   login,
   verificarToken,
   recuperarSenha,
-  trocarSenha
+  trocarSenha,
+  listarClientes,
+  trocarCliente
 };

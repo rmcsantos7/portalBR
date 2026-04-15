@@ -85,6 +85,19 @@ export function AuthProvider({ children }) {
     setSenhaTemporaria(false);
   }, []);
 
+  /**
+   * Troca o cliente ativo (apenas admins).
+   * Chama /auth/trocar-cliente no back, salva o novo token e atualiza usuário.
+   */
+  const trocarCliente = useCallback(async (clienteId) => {
+    const res = await api.post('/auth/trocar-cliente', { cliente_id: clienteId });
+    const { token: novoToken, usuario: novoUsuario } = res.data.data;
+    const lembrar = !!localStorage.getItem('auth_token');
+    setToken(novoToken, lembrar);
+    setUsuario(novoUsuario);
+    return novoUsuario;
+  }, []);
+
   const logout = useCallback(() => {
     removeToken();
     setUsuario(null);
@@ -100,8 +113,9 @@ export function AuthProvider({ children }) {
 
   // Memoizar o value para evitar re-renders desnecessários
   const value = useMemo(() => ({
-    usuario, carregando, login, logout, atualizarToken, autenticado: !!usuario, senhaTemporaria
-  }), [usuario, carregando, login, logout, atualizarToken, senhaTemporaria]);
+    usuario, carregando, login, logout, atualizarToken, trocarCliente,
+    autenticado: !!usuario, senhaTemporaria
+  }), [usuario, carregando, login, logout, atualizarToken, trocarCliente, senhaTemporaria]);
 
   return (
     <AuthContext.Provider value={value}>

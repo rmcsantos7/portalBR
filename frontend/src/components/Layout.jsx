@@ -7,6 +7,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { NavLink, Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
+import { authAPI } from '../services/api';
 import { formatCNPJ, getIniciais } from '../utils/formatters';
 import './Layout.css';
 
@@ -46,13 +47,28 @@ const IconRelatorios = () => (
   </svg>
 );
 
+const IconClientes = () => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2h-4a2 2 0 0 1-2-2v-5h-2v5a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
+  </svg>
+);
+
 function Layout() {
-  const { usuario, logout } = useAuth();
+  const { usuario, logout, trocarCliente } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const [showDropdown, setShowDropdown] = useState(false);
   const [sidebarAberta, setSidebarAberta] = useState(false);
   const dropdownRef = useRef(null);
+
+  // Modal de seleção de cliente (apenas admins)
+  const isAdmin = usuario?.usr_administrador === 'S';
+  const [modalClienteAberto, setModalClienteAberto] = useState(false);
+  const [clientes, setClientes] = useState([]);
+  const [carregandoClientes, setCarregandoClientes] = useState(false);
+  const [buscaCliente, setBuscaCliente] = useState('');
+  const [erroCliente, setErroCliente] = useState('');
+  const [trocandoCliente, setTrocandoCliente] = useState(false);
 
   const pageTitles = {
     '/dashboard': 'Dashboard Empresa',
@@ -86,6 +102,52 @@ function Layout() {
     setSidebarAberta(false);
   }, [location.pathname]);
 
+  const abrirModalClientes = async () => {
+    setSidebarAberta(false);
+    setModalClienteAberto(true);
+    setBuscaCliente('');
+    setErroCliente('');
+    if (clientes.length === 0) {
+      setCarregandoClientes(true);
+      try {
+        const res = await authAPI.listarClientes();
+        setClientes(res.data?.data || []);
+      } catch (err) {
+        setErroCliente(err.response?.data?.message || 'Erro ao carregar clientes');
+      } finally {
+        setCarregandoClientes(false);
+      }
+    }
+  };
+
+  const selecionarCliente = async (clienteId) => {
+    if (trocandoCliente) return;
+    if (clienteId === usuario?.crd_cli_id) {
+      setModalClienteAberto(false);
+      return;
+    }
+    setTrocandoCliente(true);
+    setErroCliente('');
+    try {
+      await trocarCliente(clienteId);
+      setModalClienteAberto(false);
+      // Navegar para o dashboard para recarregar dados no contexto do novo cliente
+      navigate('/dashboard');
+    } catch (err) {
+      setErroCliente(err.response?.data?.message || 'Erro ao trocar de cliente');
+    } finally {
+      setTrocandoCliente(false);
+    }
+  };
+
+  const clientesFiltrados = clientes.filter(c => {
+    if (!buscaCliente.trim()) return true;
+    const termo = buscaCliente.toLowerCase();
+    const nome = (c.crd_cli_nome_fantasia || '').toLowerCase();
+    const cnpj = (c.crd_cli_cnpj || '').replace(/\D/g, '');
+    return nome.includes(termo) || cnpj.includes(termo.replace(/\D/g, ''));
+  });
+
   return (
     <div className="layout">
       {/* Overlay mobile */}
@@ -112,8 +174,74 @@ function Layout() {
           <NavLink to="/relatorios" className={({ isActive }) => `sidebar-item ${isActive ? 'active' : ''}`}>
             <IconRelatorios /> Relatórios
           </NavLink>
+
+          {isAdmin && (
+            <button
+              type="button"
+              className="sidebar-item"
+              onClick={abrirModalClientes}
+            >
+              <IconClientes /> Selecionar Cliente
+            </button>
+          )}
         </nav>
       </aside>
+
+      {/* Modal de seleção de cliente (admin) */}
+      {modalClienteAberto && (
+        <div className="cliente-modal-overlay" onClick={() => !trocandoCliente && setModalClienteAberto(false)}>
+          <div className="cliente-modal" onClick={e => e.stopPropagation()}>
+            <div className="cliente-modal-header">
+              <h3>Selecionar Cliente</h3>
+              <button
+                className="cliente-modal-close"
+                onClick={() => !trocandoCliente && setModalClienteAberto(false)}
+                disabled={trocandoCliente}
+                aria-label="Fechar"
+              >&times;</button>
+            </div>
+
+            <div className="cliente-modal-body">
+              <input
+                type="text"
+                className="cliente-modal-search"
+                placeholder="Buscar por nome ou CNPJ..."
+                value={buscaCliente}
+                onChange={e => setBuscaCliente(e.target.value)}
+                autoFocus
+              />
+
+              {erroCliente && (
+                <div className="cliente-modal-erro">{erroCliente}</div>
+              )}
+
+              {carregandoClientes ? (
+                <div className="cliente-modal-loading">Carregando clientes...</div>
+              ) : (
+                <ul className="cliente-modal-lista">
+                  {clientesFiltrados.length === 0 && (
+                    <li className="cliente-modal-vazio">Nenhum cliente encontrado</li>
+                  )}
+                  {clientesFiltrados.map(c => {
+                    const ativo = c.crd_cli_id === usuario?.crd_cli_id;
+                    return (
+                      <li
+                        key={c.crd_cli_id}
+                        className={`cliente-modal-item ${ativo ? 'ativo' : ''}`}
+                        onClick={() => selecionarCliente(c.crd_cli_id)}
+                      >
+                        <div className="cliente-modal-item-nome">{c.crd_cli_nome_fantasia}</div>
+                        <div className="cliente-modal-item-cnpj">{formatCNPJ(c.crd_cli_cnpj)}</div>
+                        {ativo && <span className="cliente-modal-item-check">&#10003;</span>}
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Conteúdo */}
       <div className="layout-content">
@@ -158,9 +286,10 @@ function Layout() {
           </div>
         </header>
 
-        {/* Área principal */}
+        {/* Área principal — key força remount quando admin troca cliente,
+            garantindo refetch dos dados da página atual */}
         <main className="main-content">
-          <Outlet />
+          <Outlet key={usuario?.crd_cli_id || 'sem-cliente'} />
         </main>
       </div>
     </div>

@@ -54,9 +54,30 @@ const trocarSenha = asyncHandler(async (req, res) => {
   return res.status(200).json(resultado);
 });
 
+/**
+ * GET /api/auth/clientes
+ * Lista clientes disponíveis (apenas administradores)
+ */
+const listarClientes = asyncHandler(async (req, res) => {
+  const resultado = await authService.listarClientes(req.usuario);
+  return res.status(200).json(resultado);
+});
+
+/**
+ * POST /api/auth/trocar-cliente
+ * Troca o cliente ativo do admin, retornando um novo token
+ */
+const trocarCliente = asyncHandler(async (req, res) => {
+  const { cliente_id } = req.body;
+  const resultado = await authService.trocarCliente(req.usuario, cliente_id);
+  return res.status(200).json(resultado);
+});
+
 module.exports = {
   login,
   me,
   recuperarSenha,
-  trocarSenha
+  trocarSenha,
+  listarClientes,
+  trocarCliente
 };
