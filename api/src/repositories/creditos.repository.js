@@ -121,14 +121,9 @@ const buscarHistorico = async (clienteId, limit = 50, offset = 0, dataInicio = n
     FROM crd_usuario_credito_remessa r
     LEFT JOIN crd_usuario_credito c ON c.crd_usucrerem_id = r.crd_usucrerem_id
     INNER JOIN crd_cliente cli ON cli.crd_cli_id = r.crd_cli_id
-    LEFT JOIN LATERAL (
-      SELECT * FROM crd_nota_fiscal nf2
-      WHERE nf2.crd_cli_id = r.crd_cli_id
-        AND nf2.crd_not_data_emissao = r.crd_usu_data_import::date
-        AND nf2.crd_not_situacao = 'A'
-      ORDER BY nf2.crd_not_id DESC
-      LIMIT 1
-    ) nf ON true
+    LEFT JOIN crd_nota_fiscal nf
+      ON nf.crd_not_id = c.crd_not_id
+      AND nf.crd_not_situacao = 'A'
     WHERE r.crd_cli_id = $1
   `;
 
@@ -227,14 +222,9 @@ const buscarDetalheRemessa = async (remessaId, clienteId) => {
     INNER JOIN crd_usuario u ON u.crd_usr_id = c.crd_usr_id
     INNER JOIN crd_cliente cli ON cli.crd_cli_id = c.crd_cli_id
     INNER JOIN crd_usuario_credito_remessa r ON r.crd_usucrerem_id = c.crd_usucrerem_id
-    LEFT JOIN LATERAL (
-      SELECT * FROM crd_nota_fiscal nf2
-      WHERE nf2.crd_cli_id = c.crd_cli_id
-        AND nf2.crd_not_data_emissao = c.crd_usu_data_credito
-        AND nf2.crd_not_situacao = 'A'
-      ORDER BY nf2.crd_not_id DESC
-      LIMIT 1
-    ) nf ON true
+    LEFT JOIN crd_nota_fiscal nf
+      ON nf.crd_not_id = c.crd_not_id
+      AND nf.crd_not_situacao = 'A'
     WHERE c.crd_usucrerem_id = $1
       AND c.crd_cli_id = $2
     ORDER BY u.crd_usr_nome ASC
@@ -297,6 +287,33 @@ const criarNotaFiscal = async (client, clienteId, valorBruto, valorServico) => {
 };
 
 /**
+ * Associa todos os créditos de uma remessa à nota fiscal recém-criada.
+ * Grava crd_not_id em cada crd_usuario_credito da remessa.
+ *
+ * @param {object} client - Client de transação
+ * @param {number} remessaId - ID da remessa
+ * @param {number} clienteId - ID do cliente (segurança)
+ * @param {number} notaId - ID da nota fiscal
+ * @returns {Promise<number>} Quantidade de créditos atualizados
+ */
+const associarCreditosANota = async (client, remessaId, clienteId, notaId) => {
+  const sql = `
+    UPDATE crd_usuario_credito
+    SET crd_not_id = $1
+    WHERE crd_usucrerem_id = $2 AND crd_cli_id = $3
+  `;
+
+  try {
+    const result = await client.query(sql, [notaId, remessaId, clienteId]);
+    logger.info('Créditos associados à nota:', { remessaId, clienteId, notaId, count: result.rowCount });
+    return result.rowCount;
+  } catch (error) {
+    logger.error('Erro ao associar créditos à nota:', { error: error.message });
+    throw error;
+  }
+};
+
+/**
  * Atualiza nota fiscal com dados do boleto retornados pela API EFI
  *
  * @param {number} notaId - ID da nota fiscal
@@ -347,9 +364,7 @@ const buscarNotaFiscalPorRemessa = async (remessaId, clienteId) => {
            nf.crd_not_charge_id AS charge_id,
            nf.crd_not_boleto_status AS boleto_status
     FROM crd_nota_fiscal nf
-    INNER JOIN crd_usuario_credito c
-      ON c.crd_cli_id = nf.crd_cli_id
-      AND c.crd_usu_data_credito = nf.crd_not_data_emissao
+    INNER JOIN crd_usuario_credito c ON c.crd_not_id = nf.crd_not_id
     WHERE c.crd_usucrerem_id = $1
       AND c.crd_cli_id = $2
       AND nf.crd_not_situacao = 'A'
@@ -438,6 +453,7 @@ module.exports = {
   criarRemessa,
   inserirCredito,
   criarNotaFiscal,
+  associarCreditosANota,
   atualizarNotaComBoleto,
   buscarHistorico,
   buscarDetalheRemessa,

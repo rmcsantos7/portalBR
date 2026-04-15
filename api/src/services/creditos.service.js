@@ -190,6 +190,14 @@ const gerarCredito = async (payload, login = 'sistema') => {
         valorBruto,
         valorServico
       );
+
+      // 4.1. Associa todos os créditos da remessa à nota criada (crd_not_id)
+      await creditosRepository.associarCreditosANota(
+        client,
+        remessaId,
+        clienteId,
+        notaFiscalId
+      );
     }
 
     // 5. Confirma transação
