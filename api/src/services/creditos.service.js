@@ -397,7 +397,7 @@ const obterDetalheRemessa = async (remessaId, clienteId) => {
  * 1. Verifica se existe nota fiscal vinculada
  * 2. Se tem boleto, consulta status na API EFI
  * 3. Se boleto está aberto (waiting), cancela na API EFI
- * 4. Exclui: créditos, remessa e nota fiscal (tudo em transação)
+ * 4. Cancela: créditos (crd_sit_id=3), remessa (crd_rem_status='C') e nota fiscal (crd_not_situacao='C')
  *
  * @param {number} remessaId - ID da remessa
  * @param {number} clienteId - ID do cliente
@@ -460,20 +460,20 @@ const cancelarRemessa = async (remessaId, clienteId) => {
   try {
     await client.query('BEGIN');
 
-    // Exclui créditos
-    const creditosExcluidos = await creditosRepository.excluirCreditosPorRemessa(client, remessaId, clienteId);
+    // Cancela créditos (crd_sit_id = 3)
+    const creditosCancelados = await creditosRepository.cancelarCreditosPorRemessa(client, remessaId, clienteId);
 
-    // Exclui nota fiscal (se existir)
+    // Cancela nota fiscal (crd_not_situacao = 'C')
     if (notaFiscal && notaFiscal.nota_fiscal_id) {
-      await creditosRepository.excluirNotaFiscal(client, notaFiscal.nota_fiscal_id);
+      await creditosRepository.cancelarNotaFiscal(client, notaFiscal.nota_fiscal_id);
     }
 
-    // Exclui remessa
-    const remessaExcluida = await creditosRepository.excluirRemessa(client, remessaId, clienteId);
+    // Cancela remessa (crd_rem_status = 'C')
+    const remessaCancelada = await creditosRepository.cancelarRemessaRepo(client, remessaId, clienteId);
 
-    if (remessaExcluida === 0) {
+    if (remessaCancelada === 0) {
       await client.query('ROLLBACK');
-      throw new APIError('Remessa não encontrada ou já excluída', 404);
+      throw new APIError('Remessa não encontrada', 404);
     }
 
     await client.query('COMMIT');
@@ -481,16 +481,16 @@ const cancelarRemessa = async (remessaId, clienteId) => {
     logger.info('Remessa cancelada com sucesso:', {
       remessaId,
       clienteId,
-      creditosExcluidos,
-      notaExcluida: notaFiscal?.nota_fiscal_id || null,
+      creditosCancelados,
+      notaCancelada: notaFiscal?.nota_fiscal_id || null,
       boletoCancelado,
       boletoStatus
     });
 
     return ok({
       remessa_id: remessaId,
-      creditos_excluidos: creditosExcluidos,
-      nota_fiscal_excluida: notaFiscal?.nota_fiscal_id || null,
+      creditos_cancelados: creditosCancelados,
+      nota_fiscal_cancelada: notaFiscal?.nota_fiscal_id || null,
       boleto_cancelado: boletoCancelado,
       boleto_status_anterior: boletoStatus
     }, 'Remessa cancelada com sucesso');

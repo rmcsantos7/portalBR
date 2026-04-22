@@ -382,69 +382,61 @@ const buscarNotaFiscalPorRemessa = async (remessaId, clienteId) => {
 };
 
 /**
- * Exclui todos os créditos de uma remessa
- * @param {object} client - Client de transação
- * @param {number} remessaId - ID da remessa
- * @param {number} clienteId - ID do cliente
- * @returns {Promise<number>} Quantidade de créditos excluídos
+ * Cancela todos os créditos de uma remessa (crd_sit_id = 3)
  */
-const excluirCreditosPorRemessa = async (client, remessaId, clienteId) => {
+const cancelarCreditosPorRemessa = async (client, remessaId, clienteId) => {
   const sql = `
-    DELETE FROM crd_usuario_credito
+    UPDATE crd_usuario_credito
+    SET crd_sit_id = 3
     WHERE crd_usucrerem_id = $1 AND crd_cli_id = $2
   `;
 
   try {
     const result = await client.query(sql, [remessaId, clienteId]);
-    logger.info('Créditos excluídos:', { remessaId, clienteId, count: result.rowCount });
+    logger.info('Créditos cancelados:', { remessaId, clienteId, count: result.rowCount });
     return result.rowCount;
   } catch (error) {
-    logger.error('Erro ao excluir créditos:', { error: error.message });
+    logger.error('Erro ao cancelar créditos:', { error: error.message });
     throw error;
   }
 };
 
 /**
- * Exclui a remessa
- * @param {object} client - Client de transação
- * @param {number} remessaId - ID da remessa
- * @param {number} clienteId - ID do cliente
- * @returns {Promise<number>} Quantidade excluída
+ * Cancela a remessa (crd_rem_status = 'C')
  */
-const excluirRemessa = async (client, remessaId, clienteId) => {
+const cancelarRemessaRepo = async (client, remessaId, clienteId) => {
   const sql = `
-    DELETE FROM crd_usuario_credito_remessa
+    UPDATE crd_usuario_credito_remessa
+    SET crd_rem_status = 'C'
     WHERE crd_usucrerem_id = $1 AND crd_cli_id = $2
   `;
 
   try {
     const result = await client.query(sql, [remessaId, clienteId]);
-    logger.info('Remessa excluída:', { remessaId, clienteId });
+    logger.info('Remessa cancelada:', { remessaId, clienteId });
     return result.rowCount;
   } catch (error) {
-    logger.error('Erro ao excluir remessa:', { error: error.message });
+    logger.error('Erro ao cancelar remessa:', { error: error.message });
     throw error;
   }
 };
 
 /**
- * Exclui (ou inativa) a nota fiscal
- * @param {object} client - Client de transação
- * @param {number} notaId - ID da nota fiscal
- * @returns {Promise<number>} Quantidade excluída
+ * Cancela a nota fiscal (crd_not_situacao = 'C')
  */
-const excluirNotaFiscal = async (client, notaId) => {
+const cancelarNotaFiscal = async (client, notaId) => {
   const sql = `
-    DELETE FROM crd_nota_fiscal
+    UPDATE crd_nota_fiscal
+    SET crd_not_situacao = 'C'
     WHERE crd_not_id = $1
   `;
 
   try {
     const result = await client.query(sql, [notaId]);
-    logger.info('Nota fiscal excluída:', { notaId });
+    logger.info('Nota fiscal cancelada:', { notaId });
     return result.rowCount;
   } catch (error) {
-    logger.error('Erro ao excluir nota fiscal:', { error: error.message });
+    logger.error('Erro ao cancelar nota fiscal:', { error: error.message });
     throw error;
   }
 };
@@ -458,7 +450,7 @@ module.exports = {
   buscarHistorico,
   buscarDetalheRemessa,
   buscarNotaFiscalPorRemessa,
-  excluirCreditosPorRemessa,
-  excluirRemessa,
-  excluirNotaFiscal
+  cancelarCreditosPorRemessa,
+  cancelarRemessaRepo,
+  cancelarNotaFiscal
 };
