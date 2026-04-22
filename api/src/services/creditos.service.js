@@ -205,6 +205,7 @@ const gerarCredito = async (payload, login = 'sistema') => {
 
     // 6. Gera boleto via API EFI (após COMMIT, para não travar a transação)
     let boleto = null;
+    let boletoErro = null;
     if (notaFiscalId) {
       try {
         const baseUrl = process.env.BASE_URL_HUB_BAAS || 'http://localhost:5003';
@@ -219,16 +220,18 @@ const gerarCredito = async (payload, login = 'sistema') => {
           body: JSON.stringify({ com_juros: false })
         });
 
-        const boletoResult = await boletoResponse.json();
+        const boletoResult = await boletoResponse.json().catch(() => null);
 
-        if (boletoResult.success && boletoResult.data) {
+        if (boletoResult && boletoResult.success && boletoResult.data) {
           boleto = boletoResult.data;
           await creditosRepository.atualizarNotaComBoleto(notaFiscalId, boleto);
         } else {
-          logger.warn('API de boleto retornou erro:', { notaFiscalId, boletoResult });
+          const msg = boletoResult?.error || boletoResult?.message || `HTTP ${boletoResponse.status}`;
+          boletoErro = msg;
+          logger.warn('API de boleto retornou erro:', { notaFiscalId, status: boletoResponse.status, boletoResult });
         }
       } catch (boletoError) {
-        // Não falha a operação inteira se o boleto der erro — pode ser gerado depois
+        boletoErro = boletoError.message || 'Falha de comunicação com o serviço de boleto';
         logger.error('Erro ao gerar boleto (nota fiscal já criada):', {
           notaFiscalId,
           error: boletoError.message
@@ -265,7 +268,8 @@ const gerarCredito = async (payload, login = 'sistema') => {
         pix_qrcode: boleto.pix?.qrcode || null,
         pdf_url: boleto.links?.pdf_url || null,
         qrcode_image_url: boleto.links?.qrcode_image_url || null
-      } : null
+      } : null,
+      boleto_erro: boletoErro
     }, `Crédito gerado com sucesso para ${creditosCriados.length} colaborador(es)`);
   } catch (error) {
     await client.query('ROLLBACK');
