@@ -195,7 +195,7 @@ const PreviewCredito = ({ clienteId, colaboradores: colaboradoresIniciais, onVol
                 Valor Bruto
               </div>
               <div style={{ fontSize: '1.5rem', fontWeight: '700', color: '#374151' }}>
-                R$ {sucesso.valor_bruto.toFixed(2)}
+                {sucesso.valor_bruto.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
               </div>
             </div>
 
@@ -205,7 +205,7 @@ const PreviewCredito = ({ clienteId, colaboradores: colaboradoresIniciais, onVol
                   Tar. Conv. ({taxa}%)
                 </div>
                 <div style={{ fontSize: '1.5rem', fontWeight: '700', color: '#dc2626' }}>
-                  - R$ {sucesso.valor_desconto.toFixed(2)}
+                  - {sucesso.valor_desconto.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
                 </div>
               </div>
             )}
@@ -215,7 +215,7 @@ const PreviewCredito = ({ clienteId, colaboradores: colaboradoresIniciais, onVol
                 Valor Líquido
               </div>
               <div style={{ fontSize: '1.5rem', fontWeight: '700', color: '#4A1D4F' }}>
-                R$ {sucesso.valor_liquido.toFixed(2)}
+                {sucesso.valor_liquido.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
               </div>
             </div>
           </div>
@@ -485,10 +485,10 @@ const PreviewCredito = ({ clienteId, colaboradores: colaboradoresIniciais, onVol
                   {taxa > 0 && (
                     <>
                       <td className="align-right" style={{ color: '#dc2626', fontSize: '0.85rem' }}>
-                        {valorBruto > 0 ? `- ${desconto.toFixed(2)}` : '-'}
+                        {valorBruto > 0 ? `- ${desconto.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '-'}
                       </td>
                       <td className="align-right" style={{ fontWeight: '600', fontSize: '0.85rem', color: '#059669' }}>
-                        {valorBruto > 0 ? liquido.toFixed(2) : '-'}
+                        {valorBruto > 0 ? liquido.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '-'}
                       </td>
                     </>
                   )}
@@ -538,7 +538,7 @@ const PreviewCredito = ({ clienteId, colaboradores: colaboradoresIniciais, onVol
             <div style={{ textAlign: 'right' }}>
               <span style={{ fontSize: '0.75rem', color: '#6b7280' }}>{taxa > 0 ? 'Valor Líquido' : 'Valor Total'}</span>
               <div style={{ fontSize: '1.3rem', fontWeight: '700', color: '#4A1D4F' }}>
-                R$ {totalLiquido.toFixed(2)}
+                {totalLiquido.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
               </div>
             </div>
           </div>

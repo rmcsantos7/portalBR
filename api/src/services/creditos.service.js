@@ -269,13 +269,13 @@ const gerarCredito = async (payload, login = 'sistema') => {
     }, `Crédito gerado com sucesso para ${creditosCriados.length} colaborador(es)`);
   } catch (error) {
     await client.query('ROLLBACK');
-    logger.error('Erro ao gerar crédito:', { error: error.message });
+    logger.error('Erro ao gerar recarga:', { error: error.message });
 
     if (error instanceof APIError) {
       throw error;
     }
 
-    throw new APIError('Erro ao gerar crédito', 500);
+    throw new APIError('Erro ao gerar recarga', 500);
   } finally {
     client.release();
   }
