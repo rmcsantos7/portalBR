@@ -107,6 +107,11 @@ export const creditosAPI = {
       params: { cliente_id: clienteId }
     });
   },
+  reemitirBoleto: (clienteId, remessaId) => {
+    return api.post(`/creditos/remessa/${remessaId}/boleto`, null, {
+      params: { cliente_id: clienteId }
+    });
+  },
   // URLs proxy para boleto (PDF e QR Code via hub-bass)
   getBoletoPdfUrl: (notaId) => `${API_URL}/creditos/nota/${notaId}/pdf`,
   getBoletoQrCodeUrl: (notaId) => `${API_URL}/creditos/nota/${notaId}/qrcode`

@@ -404,6 +404,26 @@ const cancelarCreditosPorRemessa = async (client, remessaId, clienteId) => {
 };
 
 /**
+ * Atualiza status da remessa (usa client opcional para participar de transação)
+ */
+const atualizarStatusRemessa = async (remessaId, clienteId, status, client = null) => {
+  const sql = `
+    UPDATE crd_usuario_credito_remessa
+    SET crd_rem_status = $1
+    WHERE crd_usucrerem_id = $2 AND crd_cli_id = $3
+  `;
+  const executor = client || db;
+  try {
+    const result = await executor.query(sql, [status, remessaId, clienteId]);
+    logger.info('Status da remessa atualizado:', { remessaId, clienteId, status });
+    return result.rowCount;
+  } catch (error) {
+    logger.error('Erro ao atualizar status da remessa:', { error: error.message });
+    throw error;
+  }
+};
+
+/**
  * Cancela a remessa (crd_rem_status = 'C')
  */
 const cancelarRemessaRepo = async (client, remessaId, clienteId) => {
@@ -454,5 +474,6 @@ module.exports = {
   buscarNotaFiscalPorRemessa,
   cancelarCreditosPorRemessa,
   cancelarRemessaRepo,
-  cancelarNotaFiscal
+  cancelarNotaFiscal,
+  atualizarStatusRemessa
 };

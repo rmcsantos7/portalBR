@@ -16,6 +16,7 @@ const DetalheRecarga = ({ clienteId, remessaId, onVoltar }) => {
   const [mostrarQrCode, setMostrarQrCode] = useState(false);
   const [cancelando, setCancelando] = useState(false);
   const [mostrarConfirmacao, setMostrarConfirmacao] = useState(false);
+  const [reemitindo, setReemitindo] = useState(false);
 
   useEffect(() => {
     if (clienteId && remessaId) {
@@ -45,6 +46,20 @@ const DetalheRecarga = ({ clienteId, remessaId, onVoltar }) => {
 
   const formatarMoeda = (valor) => {
     return (parseFloat(valor) || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+  };
+
+  const handleReemitirBoleto = async () => {
+    setReemitindo(true);
+    try {
+      await creditosAPI.reemitirBoleto(clienteId, remessaId);
+      alert('Boleto gerado com sucesso!');
+      carregarDetalhes();
+    } catch (err) {
+      const msg = err.response?.data?.message || err.response?.data?.error || 'Erro ao gerar boleto';
+      alert(msg);
+    } finally {
+      setReemitindo(false);
+    }
   };
 
   const handleCancelar = async () => {
@@ -157,6 +172,22 @@ const DetalheRecarga = ({ clienteId, remessaId, onVoltar }) => {
             </svg>
             Relatório
           </button>
+          {dados.status === 'E' && (
+            <button
+              onClick={handleReemitirBoleto}
+              disabled={reemitindo}
+              style={{
+                padding: '8px 16px', fontSize: '0.82rem', display: 'flex', alignItems: 'center', gap: '6px',
+                background: '#fffbeb', color: '#b45309', border: '1px solid #fde68a', borderRadius: '8px',
+                cursor: reemitindo ? 'not-allowed' : 'pointer', fontWeight: '500'
+              }}
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#b45309" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/>
+              </svg>
+              {reemitindo ? 'Gerando...' : 'Tentar Gerar Boleto'}
+            </button>
+          )}
           {dados.status !== 'C' && (
             <button
               onClick={() => setMostrarConfirmacao(true)}

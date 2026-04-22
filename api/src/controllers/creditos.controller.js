@@ -176,11 +176,35 @@ const cancelarRemessa = asyncHandler(async (req, res) => {
   return res.status(200).json(resultado);
 });
 
+/**
+ * POST /api/creditos/remessa/:remessa_id/boleto?cliente_id=1
+ * Reemite o boleto de uma remessa em erro
+ */
+const reemitirBoleto = asyncHandler(async (req, res) => {
+  const { cliente_id } = req.query;
+  const { remessa_id } = req.params;
+
+  const clienteId = extractClienteId(cliente_id);
+  if (!clienteId) {
+    throw new APIError('cliente_id inválido ou não fornecido', 400, { campo: 'cliente_id' });
+  }
+
+  const remessaId = parseInt(remessa_id);
+  if (!remessaId || remessaId <= 0) {
+    throw new APIError('remessa_id inválido', 400, { campo: 'remessa_id' });
+  }
+
+  const resultado = await creditosService.reemitirBoleto(remessaId, clienteId);
+  logger.info('Boleto reemitido via API:', { clienteId, remessaId });
+  return res.status(200).json(resultado);
+});
+
 module.exports = {
   gerarCredito,
   obterHistorico,
   obterDetalheRemessa,
   obterBoletoPdf,
   obterBoletoQrCode,
-  cancelarRemessa
+  cancelarRemessa,
+  reemitirBoleto
 };
