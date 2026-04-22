@@ -109,6 +109,7 @@ const buscarHistorico = async (clienteId, limit = 50, offset = 0, dataInicio = n
       r.crd_usucrerem_id AS remessa_id,
       r.crd_usu_data_import AS data_criacao,
       r.crd_usu_login AS criado_por,
+      r.crd_rem_status AS status,
       cli.crd_cli_nome_fantasia AS restaurante,
       COALESCE(cli.crd_cli_manutencao_usuario, 0) AS taxa,
       r.crd_usucrerem_titulo AS titulo,
@@ -143,7 +144,7 @@ const buscarHistorico = async (clienteId, limit = 50, offset = 0, dataInicio = n
   }
 
   sql += `
-    GROUP BY r.crd_usucrerem_id, r.crd_usu_data_import, r.crd_usu_login, cli.crd_cli_nome_fantasia, cli.crd_cli_manutencao_usuario, r.crd_usucrerem_titulo, nf.crd_not_id, nf.crd_not_boleto_status, nf.crd_not_qr_code, nf.crd_not_linha_digitavel_boleto
+    GROUP BY r.crd_usucrerem_id, r.crd_usu_data_import, r.crd_usu_login, r.crd_rem_status, cli.crd_cli_nome_fantasia, cli.crd_cli_manutencao_usuario, r.crd_usucrerem_titulo, nf.crd_not_id, nf.crd_not_boleto_status, nf.crd_not_qr_code, nf.crd_not_linha_digitavel_boleto
     ORDER BY r.crd_usucrerem_id DESC
     LIMIT $${paramCount} OFFSET $${paramCount + 1}
   `;
@@ -208,6 +209,7 @@ const buscarDetalheRemessa = async (remessaId, clienteId) => {
       COALESCE(cli.crd_cli_manutencao_usuario, 0) AS taxa,
       r.crd_usu_login AS criado_por,
       r.crd_usu_data_import AS data_criacao,
+      r.crd_rem_status AS status,
       cli.crd_cli_nome_fantasia AS restaurante,
       r.crd_usucrerem_titulo AS titulo,
       nf.crd_not_id AS nota_fiscal_id,

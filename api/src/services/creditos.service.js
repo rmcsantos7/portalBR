@@ -340,7 +340,8 @@ const obterDetalheRemessa = async (remessaId, clienteId) => {
       criado_por: detalhes[0].criado_por,
       data_criacao: detalhes[0].data_criacao,
       restaurante: detalhes[0].restaurante,
-      titulo: detalhes[0].titulo || null
+      titulo: detalhes[0].titulo || null,
+      status: detalhes[0].status || null
     } : {};
 
     // Dados do boleto (vêm do JOIN com crd_nota_fiscal)

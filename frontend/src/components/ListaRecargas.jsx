@@ -187,9 +187,10 @@ const ListaRecargas = ({ clienteId, onNovaRecarga }) => {
                   const taxa = parseFloat(r.taxa) || 0;
                   const valorBruto = parseFloat(r.valor_bruto) || 0;
                   const valorLiquido = calcularLiquido(valorBruto, taxa);
+                  const cancelada = r.status === 'C';
 
                   return (
-                    <tr key={r.remessa_id} style={{ cursor: 'pointer' }} onClick={() => setRemessaAberta(r.remessa_id)}>
+                    <tr key={r.remessa_id} style={{ cursor: 'pointer', opacity: cancelada ? 0.6 : 1 }} onClick={() => setRemessaAberta(r.remessa_id)}>
                       <td style={{ fontWeight: '500' }}>{formatarData(r.data_criacao)}</td>
                       <td>
                         <span style={{
@@ -203,6 +204,20 @@ const ListaRecargas = ({ clienteId, onNovaRecarga }) => {
                         }}>
                           #{r.remessa_id}
                         </span>
+                        {cancelada && (
+                          <span style={{
+                            marginLeft: '6px',
+                            background: '#fef2f2',
+                            color: '#dc2626',
+                            padding: '2px 8px',
+                            borderRadius: '6px',
+                            fontSize: '0.7rem',
+                            fontWeight: '700',
+                            border: '1px solid #fecaca'
+                          }}>
+                            CANCELADA
+                          </span>
+                        )}
                       </td>
                       <td style={{ fontWeight: '500' }}>{r.restaurante || '-'}</td>
                       <td style={{ fontSize: '0.85rem', color: 'var(--cinza-600)', maxWidth: '180px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
@@ -258,18 +273,20 @@ const ListaRecargas = ({ clienteId, onNovaRecarga }) => {
                                 <path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/>
                               </svg>
                             </a>
-                            <button
-                              title="Cancelar Remessa"
-                              onClick={() => setCancelModal(r)}
-                              style={{
-                                background: '#fef2f2', border: '1px solid #fecaca', borderRadius: '6px',
-                                padding: '5px 7px', cursor: 'pointer', display: 'flex', alignItems: 'center'
-                              }}
-                            >
-                              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#dc2626" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                <circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/>
-                              </svg>
-                            </button>
+                            {!cancelada && (
+                              <button
+                                title="Cancelar Remessa"
+                                onClick={() => setCancelModal(r)}
+                                style={{
+                                  background: '#fef2f2', border: '1px solid #fecaca', borderRadius: '6px',
+                                  padding: '5px 7px', cursor: 'pointer', display: 'flex', alignItems: 'center'
+                                }}
+                              >
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#dc2626" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                  <circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/>
+                                </svg>
+                              </button>
+                            )}
                           </div>
                         ) : (
                           <span style={{ fontSize: '0.75rem', color: 'var(--cinza-400)' }}>-</span>

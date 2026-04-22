@@ -157,20 +157,30 @@ const DetalheRecarga = ({ clienteId, remessaId, onVoltar }) => {
             </svg>
             Relatório
           </button>
-          <button
-            onClick={() => setMostrarConfirmacao(true)}
-            disabled={cancelando}
-            style={{
-              padding: '8px 16px', fontSize: '0.82rem', display: 'flex', alignItems: 'center', gap: '6px',
-              background: '#fef2f2', color: '#dc2626', border: '1px solid #fecaca', borderRadius: '8px',
-              cursor: cancelando ? 'not-allowed' : 'pointer', fontWeight: '500'
-            }}
-          >
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#dc2626" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/>
-            </svg>
-            {cancelando ? 'Cancelando...' : 'Cancelar Remessa'}
-          </button>
+          {dados.status !== 'C' && (
+            <button
+              onClick={() => setMostrarConfirmacao(true)}
+              disabled={cancelando}
+              style={{
+                padding: '8px 16px', fontSize: '0.82rem', display: 'flex', alignItems: 'center', gap: '6px',
+                background: '#fef2f2', color: '#dc2626', border: '1px solid #fecaca', borderRadius: '8px',
+                cursor: cancelando ? 'not-allowed' : 'pointer', fontWeight: '500'
+              }}
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#dc2626" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/>
+              </svg>
+              {cancelando ? 'Cancelando...' : 'Cancelar Remessa'}
+            </button>
+          )}
+          {dados.status === 'C' && (
+            <span style={{
+              padding: '8px 16px', fontSize: '0.82rem', background: '#fef2f2',
+              color: '#dc2626', border: '1px solid #fecaca', borderRadius: '8px', fontWeight: '700'
+            }}>
+              REMESSA CANCELADA
+            </span>
+          )}
         </div>
       </div>
 
