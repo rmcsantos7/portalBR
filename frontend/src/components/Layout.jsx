@@ -61,8 +61,10 @@ function Layout() {
   const [sidebarAberta, setSidebarAberta] = useState(false);
   const dropdownRef = useRef(null);
 
-  // Modal de seleção de cliente (apenas admins)
+  // Modal de seleção de cliente — admin OU usuário com >1 restaurante vinculado
   const isAdmin = usuario?.usr_administrador === 'S';
+  const temMultiplosRestaurantes = (usuario?.total_restaurantes || 1) > 1;
+  const podeTrocarRestaurante = isAdmin || temMultiplosRestaurantes;
   const [modalClienteAberto, setModalClienteAberto] = useState(false);
   const [clientes, setClientes] = useState([]);
   const [carregandoClientes, setCarregandoClientes] = useState(false);
@@ -175,13 +177,13 @@ function Layout() {
             <IconRelatorios /> Relatórios
           </NavLink>
 
-          {isAdmin && (
+          {podeTrocarRestaurante && (
             <button
               type="button"
               className="sidebar-item"
               onClick={abrirModalClientes}
             >
-              <IconClientes /> Selecionar Cliente
+              <IconClientes /> {isAdmin ? 'Selecionar Cliente' : 'Trocar Restaurante'}
             </button>
           )}
         </nav>

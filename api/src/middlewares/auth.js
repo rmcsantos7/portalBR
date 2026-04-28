@@ -23,7 +23,8 @@ const authMiddleware = (req, res, next) => {
       cliente_id: decoded.crd_cli_id,
       cliente_nome: decoded.cliente_nome,
       cliente_cnpj: decoded.cliente_cnpj,
-      administrador: decoded.usr_administrador === 'S'
+      administrador: decoded.usr_administrador === 'S',
+      total_restaurantes: decoded.total_restaurantes || 1
     };
     next();
   } catch (error) {

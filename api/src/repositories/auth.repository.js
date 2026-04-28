@@ -161,15 +161,46 @@ const buscarClientePorId = async (clienteId) => {
 };
 
 /**
+ * Verifica se o usuário já aceitou os termos de uso (fr_usuario.usr_termos_aceitos).
+ */
+const termosForamAceitos = async (usrCodigo) => {
+  const sql = `SELECT usr_termos_aceitos FROM fr_usuario WHERE usr_codigo = $1`;
+  try {
+    const result = await db.query(sql, [usrCodigo]);
+    return result.rows[0]?.usr_termos_aceitos === true;
+  } catch (error) {
+    logger.error('Erro ao verificar aceite de termos:', { error: error.message });
+    throw error;
+  }
+};
+
+/**
+ * Registra o aceite dos termos de uso pelo usuário (idempotente).
+ */
+const registrarAceiteTermos = async (usrCodigo) => {
+  const sql = `
+    UPDATE fr_usuario
+    SET usr_termos_aceitos = true,
+        usr_data_de_aceite = CURRENT_TIMESTAMP
+    WHERE usr_codigo = $1
+  `;
+  try {
+    await db.query(sql, [usrCodigo]);
+  } catch (error) {
+    logger.error('Erro ao registrar aceite de termos:', { error: error.message });
+    throw error;
+  }
+};
+
+/**
  * Busca configuração SMS (Brasilfone) — crd_dados_sensiveis pk=2
  */
 const buscarConfigSMS = async () => {
   const sql = `
     SELECT
       crd_dad_host AS host,
-      crd_dad_usuario AS usuario,
       crd_dad_senha AS token,
-      crd_dad_remetente_principal AS remetente
+      crd_dad_tipo_comunicacao AS servico
     FROM crd_dados_sensiveis
     WHERE crd_dad_id = 2
   `;
@@ -216,5 +247,7 @@ module.exports = {
   buscarConfigSMTP,
   buscarConfigSMS,
   listarRestaurantesDoUsuario,
+  termosForamAceitos,
+  registrarAceiteTermos,
   buscarClientePorId
 };

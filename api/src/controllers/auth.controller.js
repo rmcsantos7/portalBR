@@ -26,6 +26,11 @@ const verificar2FA = asyncHandler(async (req, res) => {
   return res.status(200).json(resultado);
 });
 
+const aceitarTermos = asyncHandler(async (req, res) => {
+  const resultado = await authService.aceitarTermos(req.usuario);
+  return res.status(200).json(resultado);
+});
+
 /**
  * GET /api/auth/me
  * Retorna dados do usuário logado (do token)
@@ -41,7 +46,8 @@ const me = asyncHandler(async (req, res) => {
         crd_cli_id: req.usuario.cliente_id,
         cliente_nome: req.usuario.cliente_nome,
         cliente_cnpj: req.usuario.cliente_cnpj,
-        usr_administrador: req.usuario.administrador ? 'S' : 'N'
+        usr_administrador: req.usuario.administrador ? 'S' : 'N',
+        total_restaurantes: req.usuario.total_restaurantes || 1
       }
     }
   });
@@ -89,6 +95,7 @@ module.exports = {
   login,
   enviar2FA,
   verificar2FA,
+  aceitarTermos,
   me,
   recuperarSenha,
   trocarSenha,

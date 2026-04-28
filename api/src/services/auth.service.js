@@ -66,27 +66,27 @@ const gerarCodigo2FA = () => {
 };
 
 /**
- * Envia SMS via Brasilfone HTTP API.
- * Configuração lida de crd_dados_sensiveis pk=2.
+ * Envia SMS via wrapper PHP (mesma chamada usada pelo MKF "Enviar SMS Generico").
+ *   GET {host}numero={destinatario}&str={mensagem}&token={token}&size=2
+ *
+ * Configuração lida de crd_dados_sensiveis pk=2:
+ *   crd_dad_host  → URL completa terminando em '?' (ex.: ".../new_envio.php?")
+ *   crd_dad_senha → token
  */
 const enviarSMS = async (numero, mensagem) => {
   const cfg = await authRepository.buscarConfigSMS();
-  if (!cfg || !cfg.host) {
+  if (!cfg || !cfg.host || !cfg.token) {
+    logger.warn('SMS não configurado (host/token):', { temHost: !!cfg?.host, temToken: !!cfg?.token });
     throw new APIError('Configuração de SMS não disponível', 500);
   }
-  const numeroLimpo = String(numero).replace(/\D/g, '');
-  const params = new URLSearchParams({
-    numero: numeroLimpo,
-    str: mensagem,
-    token: cfg.token || '',
-    size: '2'
-  });
-  // host pode vir com '?' ao final — normaliza
-  const baseUrl = cfg.host.endsWith('?') ? cfg.host.slice(0, -1) : cfg.host;
-  const url = new URL(`${baseUrl}?${params.toString()}`);
 
-  // O servidor da Brasilfone usa OpenSSL antigo e exige renegociação TLS,
-  // que é desabilitada por padrão no Node moderno. Habilita explicitamente.
+  const numeroLimpo = String(numero).replace(/\D/g, '');
+  const mensagemCodificada = String(mensagem).replace(/ /g, '%20');
+  const fullUrl = `${cfg.host}numero=${encodeURIComponent(numeroLimpo)}&str=${mensagemCodificada}&token=${encodeURIComponent(cfg.token)}&size=2`;
+  const url = new URL(fullUrl);
+
+  // Servidor usa OpenSSL antigo / cert expirado — habilita renegociação legacy
+  // e desabilita validação de cert pra esse provedor específico.
   const agent = new https.Agent({
     secureOptions: constants.SSL_OP_LEGACY_SERVER_CONNECT,
     rejectUnauthorized: false
@@ -103,14 +103,8 @@ const enviarSMS = async (numero, mensagem) => {
       let body = '';
       resp.on('data', chunk => { body += chunk; });
       resp.on('end', () => {
-        logger.info('SMS enviado (resposta provedor):', { status: resp.statusCode, preview: body.slice(0, 200) });
-        // O provedor às vezes responde HTTP 200 mas com erro no corpo (ex: token inválido)
-        let corpoStatus = resp.statusCode;
-        try {
-          const json = JSON.parse(body);
-          if (json && typeof json.status === 'number') corpoStatus = json.status;
-        } catch { /* corpo não é JSON, mantém status HTTP */ }
-        if (corpoStatus >= 200 && corpoStatus < 300) {
+        logger.info('SMS enviado (resposta provedor):', { httpStatus: resp.statusCode, preview: body.slice(0, 200) });
+        if (resp.statusCode >= 200 && resp.statusCode < 300) {
           resolve();
         } else {
           reject(new APIError('Falha ao enviar SMS', 500));
@@ -315,6 +309,7 @@ const verificarCodigo2FA = async (challengeToken, codigo) => {
       cliente_nome: padrao.crd_cli_nome_fantasia,
       cliente_cnpj: padrao.crd_cli_cnpj,
       usr_administrador: usuario.usr_administrador,
+      total_restaurantes: restaurantes.length,
       senha_temporaria: senhaTemporaria
     },
     JWT_SECRET,
@@ -323,9 +318,12 @@ const verificarCodigo2FA = async (challengeToken, codigo) => {
 
   logger.info('Login 2FA concluído:', { usr_codigo: usuario.usr_codigo, metodo: payload.metodo });
 
+  const termsAccepted = await authRepository.termosForamAceitos(usuario.usr_codigo);
+
   return ok({
     token,
     senha_temporaria: senhaTemporaria,
+    terms_accepted: termsAccepted,
     usuario: {
       usr_codigo: usuario.usr_codigo,
       usr_login: usuario.usr_login,
@@ -336,8 +334,24 @@ const verificarCodigo2FA = async (challengeToken, codigo) => {
       cliente_cnpj: padrao.crd_cli_cnpj,
       usr_administrador: usuario.usr_administrador,
       total_restaurantes: restaurantes.length
-    }
+    },
+    restaurantes: restaurantes.map(r => ({
+      crd_cli_id: r.crd_cli_id,
+      crd_cli_nome_fantasia: r.crd_cli_nome_fantasia,
+      crd_cli_cnpj: r.crd_cli_cnpj
+    }))
   });
+};
+
+/**
+ * Registra o aceite dos termos de uso pelo usuário logado.
+ */
+const aceitarTermos = async (usuario) => {
+  const usrCodigo = usuario?.codigo || usuario?.usr_codigo;
+  if (!usrCodigo) throw new APIError('Usuário não autenticado', 401);
+  await authRepository.registrarAceiteTermos(usrCodigo);
+  logger.info('Termos aceitos:', { usr_codigo: usrCodigo });
+  return ok({ aceito: true });
 };
 
 /**
@@ -567,6 +581,7 @@ const trocarCliente = async (usuario, novoClienteId) => {
         cliente_nome: cliente.crd_cli_nome_fantasia,
         cliente_cnpj: cliente.crd_cli_cnpj,
         usr_administrador: usuarioDb.usr_administrador,
+        total_restaurantes: restaurantes.length,
         senha_temporaria: false
       },
       JWT_SECRET,
@@ -588,7 +603,8 @@ const trocarCliente = async (usuario, novoClienteId) => {
         crd_cli_id: cliente.crd_cli_id,
         cliente_nome: cliente.crd_cli_nome_fantasia,
         cliente_cnpj: cliente.crd_cli_cnpj,
-        usr_administrador: usuarioDb.usr_administrador
+        usr_administrador: usuarioDb.usr_administrador,
+        total_restaurantes: restaurantes.length
       }
     }, 'Cliente alterado com sucesso');
   } catch (error) {
@@ -602,6 +618,7 @@ module.exports = {
   login,
   enviarCodigo2FA,
   verificarCodigo2FA,
+  aceitarTermos,
   verificarToken,
   recuperarSenha,
   trocarSenha,

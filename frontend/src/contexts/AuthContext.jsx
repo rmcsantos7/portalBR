@@ -86,16 +86,96 @@ export function AuthProvider({ children }) {
     return res.data.data; // { challenge_token, metodo }
   }, []);
 
+  // Auth pendente — segura token+usuário entre verificar2FA e a seleção de restaurante
+  const [authPendente, setAuthPendente] = useState(null);
+
   /**
-   * Etapa 3 — valida o código. Se ok, persiste o token e usuário.
+   * Etapa 3 — valida o código. Se o usuário tem múltiplos restaurantes e a senha
+   * não é temporária, NÃO efetiva o login ainda — guarda em authPendente até o
+   * usuário escolher o restaurante. Caso contrário, persiste imediatamente.
    */
   const verificar2FA = useCallback(async (challengeToken, codigo, lembrar = false) => {
     const res = await api.post('/auth/2fa/verificar', { challenge_token: challengeToken, codigo });
-    const { token, senha_temporaria: senhaTemp, usuario: usr } = res.data.data;
+    const { token, senha_temporaria: senhaTemp, terms_accepted: termsAccepted, usuario: usr, restaurantes } = res.data.data;
+    const precisaTermos = !senhaTemp && !termsAccepted;
+    const precisaEscolher = !senhaTemp && termsAccepted && (usr?.total_restaurantes || 1) > 1;
+
+    if (precisaTermos || precisaEscolher) {
+      setAuthPendente({ token, usuario: usr, lembrar, restaurantes: restaurantes || [], termsAccepted: !!termsAccepted });
+      return {
+        usuario: usr,
+        senhaTemporaria: false,
+        precisaAceitarTermos: precisaTermos,
+        precisaEscolherRestaurante: precisaEscolher,
+        restaurantes: restaurantes || []
+      };
+    }
     setToken(token, lembrar);
     setUsuario(usr);
     setSenhaTemporaria(!!senhaTemp);
     return { usuario: usr, senhaTemporaria: !!senhaTemp };
+  }, []);
+
+  /**
+   * Registra o aceite dos termos no backend usando o token pendente.
+   * Não efetiva o login ainda — o LoginPage decide o próximo passo.
+   */
+  const aceitarTermos = useCallback(async () => {
+    if (!authPendente) throw new Error('Não há login pendente');
+    const { token, lembrar } = authPendente;
+    setToken(token, lembrar);
+    try {
+      await api.post('/auth/aceitar-termos');
+      const next = { ...authPendente, termsAccepted: true };
+      setAuthPendente(next);
+      const precisaEscolher = (next.usuario?.total_restaurantes || 1) > 1;
+      if (!precisaEscolher) {
+        // só 1 restaurante — já efetiva o login
+        setUsuario(next.usuario);
+        setSenhaTemporaria(false);
+        setAuthPendente(null);
+      }
+      return { precisaEscolherRestaurante: precisaEscolher };
+    } catch (err) {
+      removeToken();
+      throw err;
+    }
+  }, [authPendente]);
+
+  /**
+   * Conclui o login depois que o usuário escolheu um restaurante.
+   * Se o escolhido é o default já no token pendente, só persiste.
+   * Senão, chama /auth/trocar-cliente usando o token pendente.
+   */
+  const finalizarLoginComRestaurante = useCallback(async (clienteId) => {
+    if (!authPendente) throw new Error('Não há login pendente');
+    const { token, usuario: usr, lembrar } = authPendente;
+    if (clienteId === usr.crd_cli_id) {
+      setToken(token, lembrar);
+      setUsuario(usr);
+      setSenhaTemporaria(false);
+      setAuthPendente(null);
+      return usr;
+    }
+    // Persiste o token pendente antes da chamada (axios interceptor pega de getToken)
+    setToken(token, lembrar);
+    try {
+      const res = await api.post('/auth/trocar-cliente', { cliente_id: clienteId });
+      const { token: novoToken, usuario: novoUsuario } = res.data.data;
+      setToken(novoToken, lembrar);
+      setUsuario(novoUsuario);
+      setSenhaTemporaria(false);
+      setAuthPendente(null);
+      return novoUsuario;
+    } catch (err) {
+      // se falhar, desfaz a persistência do token pendente
+      removeToken();
+      throw err;
+    }
+  }, [authPendente]);
+
+  const cancelarAuthPendente = useCallback(() => {
+    setAuthPendente(null);
   }, []);
 
   const atualizarToken = useCallback((novoToken) => {
@@ -134,9 +214,10 @@ export function AuthProvider({ children }) {
   const value = useMemo(() => ({
     usuario, carregando,
     iniciarLogin, enviar2FA, verificar2FA,
+    aceitarTermos, finalizarLoginComRestaurante, cancelarAuthPendente, authPendente,
     logout, atualizarToken, trocarCliente,
     autenticado: !!usuario, senhaTemporaria
-  }), [usuario, carregando, iniciarLogin, enviar2FA, verificar2FA, logout, atualizarToken, trocarCliente, senhaTemporaria]);
+  }), [usuario, carregando, iniciarLogin, enviar2FA, verificar2FA, aceitarTermos, finalizarLoginComRestaurante, cancelarAuthPendente, authPendente, logout, atualizarToken, trocarCliente, senhaTemporaria]);
 
   return (
     <AuthContext.Provider value={value}>

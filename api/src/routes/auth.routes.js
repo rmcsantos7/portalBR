@@ -16,6 +16,9 @@ router.post('/2fa/enviar', authController.enviar2FA);
 // 2FA etapa 3 — valida código e devolve JWT final (público; usa challenge_token)
 router.post('/2fa/verificar', authController.verificar2FA);
 
+// Aceite dos termos de uso (protegido — usa o JWT da etapa 3)
+router.post('/aceitar-termos', authMiddleware, authController.aceitarTermos);
+
 // Recuperação de senha (público)
 router.post('/recuperar-senha', authController.recuperarSenha);
 

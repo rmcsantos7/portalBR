@@ -9,7 +9,7 @@ import { useAuth } from '../contexts/AuthContext';
 import './LoginPage.css';
 
 function LoginPage() {
-  const [etapa, setEtapa] = useState('login'); // 'login' | 'choose-method' | 'verify-code'
+  const [etapa, setEtapa] = useState('login'); // 'login' | 'choose-method' | 'verify-code' | 'terms' | 'select-restaurant'
   const [login, setLogin] = useState('');
   const [senha, setSenha] = useState('');
   const [mostrarSenha, setMostrarSenha] = useState(false);
@@ -23,7 +23,14 @@ function LoginPage() {
   const [metodoEscolhido, setMetodoEscolhido] = useState(null);
   const [codigo, setCodigo] = useState('');
 
-  const { iniciarLogin, enviar2FA, verificar2FA } = useAuth();
+  // Estado da seleção de restaurante (quando usuário tem mais de 1)
+  const [restaurantes, setRestaurantes] = useState([]);
+  const [restauranteAtivoId, setRestauranteAtivoId] = useState(null);
+
+  // Etapa termos
+  const [aceiteMarcado, setAceiteMarcado] = useState(false);
+
+  const { iniciarLogin, enviar2FA, verificar2FA, aceitarTermos, finalizarLoginComRestaurante, cancelarAuthPendente } = useAuth();
   const navigate = useNavigate();
 
   const errorMsg = (err, fallback) =>
@@ -76,11 +83,59 @@ function LoginPage() {
     }
     setEnviando(true);
     try {
-      const { senhaTemporaria } = await verificar2FA(challengeToken, codigo, lembrar);
-      if (senhaTemporaria) navigate('/trocar-senha');
-      else navigate('/dashboard');
+      const resp = await verificar2FA(challengeToken, codigo, lembrar);
+      if (resp.senhaTemporaria) {
+        navigate('/trocar-senha');
+        return;
+      }
+      if (resp.precisaAceitarTermos) {
+        setRestaurantes(resp.restaurantes || []);
+        setRestauranteAtivoId(resp.usuario.crd_cli_id);
+        setAceiteMarcado(false);
+        setEtapa('terms');
+        return;
+      }
+      if (resp.precisaEscolherRestaurante) {
+        setRestaurantes(resp.restaurantes || []);
+        setRestauranteAtivoId(resp.usuario.crd_cli_id);
+        setEtapa('select-restaurant');
+        return;
+      }
+      navigate('/dashboard');
     } catch (err) {
       setErro(errorMsg(err, 'Erro ao validar código'));
+    } finally {
+      setEnviando(false);
+    }
+  };
+
+  const handleAceitarTermos = async () => {
+    if (!aceiteMarcado || enviando) return;
+    setErro('');
+    setEnviando(true);
+    try {
+      const { precisaEscolherRestaurante } = await aceitarTermos();
+      if (precisaEscolherRestaurante) {
+        setEtapa('select-restaurant');
+      } else {
+        navigate('/dashboard');
+      }
+    } catch (err) {
+      setErro(errorMsg(err, 'Erro ao registrar aceite'));
+    } finally {
+      setEnviando(false);
+    }
+  };
+
+  const handleSelecionarRestaurante = async (clienteId) => {
+    if (enviando) return;
+    setErro('');
+    setEnviando(true);
+    try {
+      await finalizarLoginComRestaurante(clienteId);
+      navigate('/dashboard');
+    } catch (err) {
+      setErro(errorMsg(err, 'Erro ao selecionar restaurante'));
     } finally {
       setEnviando(false);
     }
@@ -270,6 +325,106 @@ function LoginPage() {
             </a>
           </div>
         </form>
+      )}
+
+      {/* Etapa 4 — Aceite dos termos de uso (primeiro acesso) */}
+      {etapa === 'terms' && (
+        <div className="login-card">
+          <h2>Termos de Uso</h2>
+          <p style={{ color: 'rgba(255,255,255,0.7)', fontSize: '13px', margin: '0 0 14px', lineHeight: '1.5' }}>
+            Para continuar, leia e aceite os Termos de Uso da plataforma.
+          </p>
+          {erro && <div className="login-error">{erro}</div>}
+
+          <a
+            href="https://brgorjeta.com.br/terms-platform/"
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{
+              display: 'block', textAlign: 'center', padding: '10px',
+              background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.18)',
+              borderRadius: '8px', color: '#F9678C', textDecoration: 'none',
+              fontSize: '13px', fontWeight: 600, marginBottom: '14px'
+            }}
+          >
+            Abrir Termos de Uso ↗
+          </a>
+
+          <label style={{
+            display: 'flex', alignItems: 'flex-start', gap: '10px',
+            color: 'rgba(255,255,255,0.85)', fontSize: '13px',
+            cursor: enviando ? 'not-allowed' : 'pointer',
+            marginBottom: '14px', lineHeight: '1.4'
+          }}>
+            <input
+              type="checkbox"
+              checked={aceiteMarcado}
+              onChange={(e) => setAceiteMarcado(e.target.checked)}
+              disabled={enviando}
+              style={{ marginTop: '2px' }}
+            />
+            <span>Li e aceito os <strong>Termos de Uso</strong> da BR Gorjeta.</span>
+          </label>
+
+          <button
+            type="button"
+            className="login-btn"
+            onClick={handleAceitarTermos}
+            disabled={enviando || !aceiteMarcado}
+            style={{ opacity: aceiteMarcado ? 1 : 0.6 }}
+          >
+            {enviando ? 'Registrando...' : 'Aceitar e continuar'}
+          </button>
+
+          <div className="login-esqueci">
+            <a href="#" onClick={(e) => { e.preventDefault(); cancelarAuthPendente(); voltarPara('login'); }}>
+              Cancelar
+            </a>
+          </div>
+        </div>
+      )}
+
+      {/* Etapa 5 — Selecionar restaurante (quando usuário tem mais de 1) */}
+      {etapa === 'select-restaurant' && (
+        <div className="login-card">
+          <h2>Selecione o restaurante</h2>
+          <p style={{ color: 'rgba(255,255,255,0.7)', fontSize: '13px', margin: '0 0 18px', lineHeight: '1.5' }}>
+            Sua conta tem acesso a {restaurantes.length} restaurantes. Em qual deseja entrar?
+          </p>
+          {erro && <div className="login-error">{erro}</div>}
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', maxHeight: '320px', overflowY: 'auto', marginBottom: '12px' }}>
+            {restaurantes.map((c) => {
+              const ativo = c.crd_cli_id === restauranteAtivoId;
+              return (
+                <button
+                  key={c.crd_cli_id}
+                  type="button"
+                  onClick={() => handleSelecionarRestaurante(c.crd_cli_id)}
+                  disabled={enviando}
+                  style={{
+                    textAlign: 'left',
+                    padding: '12px 14px',
+                    background: ativo ? 'rgba(249, 103, 140, 0.18)' : 'rgba(255,255,255,0.08)',
+                    border: ativo ? '1px solid #F9678C' : '1px solid rgba(255,255,255,0.18)',
+                    borderRadius: '10px',
+                    color: '#fff',
+                    cursor: enviando ? 'not-allowed' : 'pointer',
+                    fontSize: '14px',
+                    transition: 'background 0.15s'
+                  }}
+                >
+                  <div style={{ fontWeight: 700 }}>{c.crd_cli_nome_fantasia || `Cliente #${c.crd_cli_id}`}</div>
+                  {c.crd_cli_cnpj && (
+                    <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.6)', marginTop: '2px' }}>
+                      {c.crd_cli_cnpj}
+                    </div>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        </div>
       )}
 
       <div className="login-branding-compact">
