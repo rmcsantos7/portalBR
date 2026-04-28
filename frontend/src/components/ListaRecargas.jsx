@@ -239,45 +239,18 @@ const ListaRecargas = ({ clienteId, onNovaRecarga }) => {
                         }}>
                           #{r.remessa_id}
                         </span>
-                        {cancelada && (
-                          <span style={{
-                            marginLeft: '6px',
-                            background: '#fef2f2',
-                            color: '#dc2626',
-                            padding: '2px 8px',
-                            borderRadius: '6px',
-                            fontSize: '0.7rem',
-                            fontWeight: '700',
-                            border: '1px solid #fecaca'
-                          }}>
-                            CANCELADA
-                          </span>
-                        )}
-                        {comErro && (
-                          <span style={{
-                            marginLeft: '6px',
-                            background: '#fffbeb',
-                            color: '#b45309',
-                            padding: '2px 8px',
-                            borderRadius: '6px',
-                            fontSize: '0.7rem',
-                            fontWeight: '700',
-                            border: '1px solid #fde68a'
-                          }}>
-                            ERRO BOLETO
-                          </span>
-                        )}
                       </td>
                       <td style={{ fontWeight: '500' }}>{formatarData(r.data_criacao)}</td>
                       <td style={{ textAlign: 'center' }}>
                         {(() => {
-                          let st = formatarStatus(r.boleto_status);
+                          // Prioridade: rem_status C/E > boleto_status > fallback
+                          let st;
+                          if (cancelada) st = formatarStatus('canceled');
+                          else if (comErro) st = { label: 'Erro no boleto', bg: '#fffbeb', color: '#b45309', border: '#fde68a' };
+                          else st = formatarStatus(r.boleto_status);
                           if (!st) {
-                            if (!r.nota_fiscal_id) {
-                              st = formatarStatus('canceled');
-                            } else {
-                              st = formatarStatus('waiting');
-                            }
+                            if (!r.nota_fiscal_id) st = formatarStatus('canceled');
+                            else st = formatarStatus('waiting');
                           }
                           return (
                             <span style={{

@@ -263,7 +263,7 @@ const criarNotaFiscal = async (client, clienteId, valorBruto, valorServico) => {
     ) VALUES (
       $1,
       CURRENT_DATE,
-      CURRENT_DATE + INTERVAL '360 days',
+      CURRENT_DATE + INTERVAL '10 days',
       $2,
       $3,
       $4,
