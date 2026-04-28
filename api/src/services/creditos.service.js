@@ -19,6 +19,42 @@ const logger = require('../utils/logger');
 const db = require('../config/database');
 
 /**
+ * Chama Hub/EFI para gerar boleto de uma nota fiscal.
+ * Retorna { boleto, erro }. Se sucesso, já persiste no banco.
+ */
+const chamarApiBoleto = async (notaFiscalId) => {
+  if (!notaFiscalId) return { boleto: null, erro: null };
+  try {
+    const baseUrl = process.env.BASE_URL_HUB_BAAS || 'http://localhost:5003';
+    const idOperacao = process.env.HUB_BAAS_ID_OPERACAO || 'BOLETO_EFI';
+    const token = process.env.HUB_BAAS_TOKEN || '';
+    const boletoUrl = `${baseUrl}/efi/V1/boleto/${idOperacao}/${notaFiscalId}`;
+    const headers = { 'Content-Type': 'application/json' };
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+
+    const boletoResponse = await fetch(boletoUrl, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ com_juros: false })
+    });
+    const boletoResult = await boletoResponse.json().catch(() => null);
+
+    if (boletoResult && boletoResult.success && boletoResult.data) {
+      const boleto = boletoResult.data;
+      await creditosRepository.atualizarNotaComBoleto(notaFiscalId, boleto);
+      return { boleto, erro: null };
+    }
+
+    const erro = boletoResult?.error || boletoResult?.message || `HTTP ${boletoResponse.status}`;
+    logger.warn('API de boleto retornou erro:', { notaFiscalId, status: boletoResponse.status, boletoResult });
+    return { boleto: null, erro };
+  } catch (err) {
+    logger.error('Falha ao chamar API de boleto:', { notaFiscalId, error: err.message });
+    return { boleto: null, erro: err.message || 'Falha de comunicação com o serviço de boleto' };
+  }
+};
+
+/**
  * Valida dados de geração de crédito
  * @param {object} payload - Dados de entrada
  * @param {number} clienteId - ID do cliente
@@ -204,35 +240,10 @@ const gerarCredito = async (payload, login = 'sistema') => {
     await client.query('COMMIT');
 
     // 6. Gera boleto via API EFI (após COMMIT, para não travar a transação)
-    let boleto = null;
+    const { boleto, erro: boletoErro } = await chamarApiBoleto(notaFiscalId);
     if (notaFiscalId) {
-      try {
-        const baseUrl = process.env.BASE_URL_HUB_BAAS || 'http://localhost:5003';
-        const idOperacao = process.env.HUB_BAAS_ID_OPERACAO || 'BOLETO_EFI';
-        const token = process.env.HUB_BAAS_TOKEN || '';
-        const boletoUrl = `${baseUrl}/efi/V1/boleto/${idOperacao}/${notaFiscalId}`;
-        const headers = { 'Content-Type': 'application/json' };
-        if (token) headers['Authorization'] = `Bearer ${token}`;
-        const boletoResponse = await fetch(boletoUrl, {
-          method: 'POST',
-          headers,
-          body: JSON.stringify({ com_juros: false })
-        });
-
-        const boletoResult = await boletoResponse.json();
-
-        if (boletoResult.success && boletoResult.data) {
-          boleto = boletoResult.data;
-          await creditosRepository.atualizarNotaComBoleto(notaFiscalId, boleto);
-        } else {
-          logger.warn('API de boleto retornou erro:', { notaFiscalId, boletoResult });
-        }
-      } catch (boletoError) {
-        // Não falha a operação inteira se o boleto der erro — pode ser gerado depois
-        logger.error('Erro ao gerar boleto (nota fiscal já criada):', {
-          notaFiscalId,
-          error: boletoError.message
-        });
+      if (boletoErro) {
+        await creditosRepository.atualizarStatusRemessa(remessaId, clienteId, 'E').catch(() => {});
       }
     }
 
@@ -265,7 +276,8 @@ const gerarCredito = async (payload, login = 'sistema') => {
         pix_qrcode: boleto.pix?.qrcode || null,
         pdf_url: boleto.links?.pdf_url || null,
         qrcode_image_url: boleto.links?.qrcode_image_url || null
-      } : null
+      } : null,
+      boleto_erro: boletoErro
     }, `Crédito gerado com sucesso para ${creditosCriados.length} colaborador(es)`);
   } catch (error) {
     await client.query('ROLLBACK');
@@ -340,7 +352,8 @@ const obterDetalheRemessa = async (remessaId, clienteId) => {
       criado_por: detalhes[0].criado_por,
       data_criacao: detalhes[0].data_criacao,
       restaurante: detalhes[0].restaurante,
-      titulo: detalhes[0].titulo || null
+      titulo: detalhes[0].titulo || null,
+      status: detalhes[0].status || null
     } : {};
 
     // Dados do boleto (vêm do JOIN com crd_nota_fiscal)
@@ -397,7 +410,7 @@ const obterDetalheRemessa = async (remessaId, clienteId) => {
  * 1. Verifica se existe nota fiscal vinculada
  * 2. Se tem boleto, consulta status na API EFI
  * 3. Se boleto está aberto (waiting), cancela na API EFI
- * 4. Exclui: créditos, remessa e nota fiscal (tudo em transação)
+ * 4. Cancela: créditos (crd_sit_id=3), remessa (crd_rem_status='C') e nota fiscal (crd_not_situacao='C')
  *
  * @param {number} remessaId - ID da remessa
  * @param {number} clienteId - ID do cliente
@@ -454,21 +467,24 @@ const cancelarRemessa = async (remessaId, clienteId) => {
     }
   }
 
-  // 4. Cancelamento lógico em transação (não deleta registros)
+  // 4. Exclui tudo em transação
   const client = await db.getClient();
 
   try {
     await client.query('BEGIN');
 
-    // Marca a nota fiscal/boleto como cancelado (se existir)
+    // Cancela créditos (crd_sit_id = 3)
+    const creditosCancelados = await creditosRepository.cancelarCreditosPorRemessa(client, remessaId, clienteId);
+
+    // Cancela nota fiscal (crd_not_situacao = 'C')
     if (notaFiscal && notaFiscal.nota_fiscal_id) {
-      await creditosRepository.marcarNotaFiscalCancelada(client, notaFiscal.nota_fiscal_id);
+      await creditosRepository.cancelarNotaFiscal(client, notaFiscal.nota_fiscal_id);
     }
 
-    // Marca a remessa como cancelada
-    const remessaAtualizada = await creditosRepository.marcarRemessaCancelada(client, remessaId, clienteId);
+    // Cancela remessa (crd_rem_status = 'C')
+    const remessaCancelada = await creditosRepository.cancelarRemessaRepo(client, remessaId, clienteId);
 
-    if (remessaAtualizada === 0) {
+    if (remessaCancelada === 0) {
       await client.query('ROLLBACK');
       throw new APIError('Remessa não encontrada', 404);
     }
@@ -478,6 +494,7 @@ const cancelarRemessa = async (remessaId, clienteId) => {
     logger.info('Remessa cancelada com sucesso:', {
       remessaId,
       clienteId,
+      creditosCancelados,
       notaCancelada: notaFiscal?.nota_fiscal_id || null,
       boletoCancelado,
       boletoStatus
@@ -485,6 +502,7 @@ const cancelarRemessa = async (remessaId, clienteId) => {
 
     return ok({
       remessa_id: remessaId,
+      creditos_cancelados: creditosCancelados,
       nota_fiscal_cancelada: notaFiscal?.nota_fiscal_id || null,
       boleto_cancelado: boletoCancelado,
       boleto_status_anterior: boletoStatus
@@ -500,10 +518,49 @@ const cancelarRemessa = async (remessaId, clienteId) => {
   }
 };
 
+/**
+ * Reemite o boleto de uma remessa que ficou em erro.
+ * Se sucesso, limpa o status de erro da remessa.
+ */
+const reemitirBoleto = async (remessaId, clienteId) => {
+  if (!remessaId || !clienteId) {
+    throw new APIError('remessa_id e cliente_id são obrigatórios', 400);
+  }
+
+  const notaFiscal = await creditosRepository.buscarNotaFiscalPorRemessa(remessaId, clienteId);
+  if (!notaFiscal || !notaFiscal.nota_fiscal_id) {
+    throw new APIError('Nota fiscal não encontrada para esta remessa', 404);
+  }
+
+  const { boleto, erro } = await chamarApiBoleto(notaFiscal.nota_fiscal_id);
+
+  if (erro) {
+    await creditosRepository.atualizarStatusRemessa(remessaId, clienteId, 'E').catch(() => {});
+    throw new APIError(`Erro ao gerar boleto: ${erro}`, 502, { boleto_erro: erro });
+  }
+
+  await creditosRepository.atualizarStatusRemessa(remessaId, clienteId, null).catch(() => {});
+
+  return ok({
+    remessa_id: remessaId,
+    nota_fiscal_id: notaFiscal.nota_fiscal_id,
+    boleto: {
+      charge_id: boleto.charge_id,
+      status: boleto.status,
+      codigo_barras: boleto.codigo_barras,
+      linha_digitavel: boleto.linha_digitavel,
+      pix_qrcode: boleto.pix?.qrcode || null,
+      pdf_url: boleto.links?.pdf_url || null,
+      qrcode_image_url: boleto.links?.qrcode_image_url || null
+    }
+  }, 'Boleto gerado com sucesso');
+};
+
 module.exports = {
   validarPayloadCredito,
   gerarCredito,
   obterHistorico,
   obterDetalheRemessa,
-  cancelarRemessa
+  cancelarRemessa,
+  reemitirBoleto
 };

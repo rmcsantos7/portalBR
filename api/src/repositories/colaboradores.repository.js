@@ -413,7 +413,7 @@ const criarColaborador = async (dados) => {
       crd_usu_data_inclusao,
       crd_usr_arranjo_fechado,
       crd_usr_arranjo_aberto
-    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, CURRENT_TIMESTAMP, true, true)
+    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, CURRENT_TIMESTAMP, true, false)
     RETURNING crd_usr_id AS id
   `;
 
@@ -581,7 +581,7 @@ const importarColaboradoresEmLote = async (colaboradores, clienteId) => {
           crd_mot_celular, crd_usr_nascimento, crd_usr_sexo,
           crd_sit_id, crd_cli_id, crd_usu_data_inclusao,
           crd_usr_arranjo_fechado, crd_usr_arranjo_aberto
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, 1, $8, CURRENT_TIMESTAMP, true, true)`,
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, 1, $8, CURRENT_TIMESTAMP, true, false)`,
         [
           novoId,
           colab.nome,

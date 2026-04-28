@@ -21,5 +21,6 @@ router.post('/gerar', creditosController.gerarCredito);
 router.get('/historico', creditosController.obterHistorico);
 router.get('/remessa/:remessa_id', creditosController.obterDetalheRemessa);
 router.delete('/remessa/:remessa_id', creditosController.cancelarRemessa);
+router.post('/remessa/:remessa_id/boleto', creditosController.reemitirBoleto);
 
 module.exports = router;

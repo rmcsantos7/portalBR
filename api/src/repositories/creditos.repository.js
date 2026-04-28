@@ -109,6 +109,7 @@ const buscarHistorico = async (clienteId, limit = 50, offset = 0, dataInicio = n
       r.crd_usucrerem_id AS remessa_id,
       r.crd_usu_data_import AS data_criacao,
       r.crd_usu_login AS criado_por,
+      r.crd_rem_status AS status,
       cli.crd_cli_nome_fantasia AS restaurante,
       COALESCE(cli.crd_cli_manutencao_usuario, 0) AS taxa,
       r.crd_usucrerem_titulo AS titulo,
@@ -143,7 +144,7 @@ const buscarHistorico = async (clienteId, limit = 50, offset = 0, dataInicio = n
   }
 
   sql += `
-    GROUP BY r.crd_usucrerem_id, r.crd_usu_data_import, r.crd_usu_login, cli.crd_cli_nome_fantasia, cli.crd_cli_manutencao_usuario, r.crd_usucrerem_titulo, nf.crd_not_id, nf.crd_not_boleto_status, nf.crd_not_qr_code, nf.crd_not_linha_digitavel_boleto
+    GROUP BY r.crd_usucrerem_id, r.crd_usu_data_import, r.crd_usu_login, r.crd_rem_status, cli.crd_cli_nome_fantasia, cli.crd_cli_manutencao_usuario, r.crd_usucrerem_titulo, nf.crd_not_id, nf.crd_not_boleto_status, nf.crd_not_qr_code, nf.crd_not_linha_digitavel_boleto
     ORDER BY r.crd_usucrerem_id DESC
     LIMIT $${paramCount} OFFSET $${paramCount + 1}
   `;
@@ -208,6 +209,7 @@ const buscarDetalheRemessa = async (remessaId, clienteId) => {
       COALESCE(cli.crd_cli_manutencao_usuario, 0) AS taxa,
       r.crd_usu_login AS criado_por,
       r.crd_usu_data_import AS data_criacao,
+      r.crd_rem_status AS status,
       cli.crd_cli_nome_fantasia AS restaurante,
       r.crd_usucrerem_titulo AS titulo,
       nf.crd_not_id AS nota_fiscal_id,
@@ -261,7 +263,7 @@ const criarNotaFiscal = async (client, clienteId, valorBruto, valorServico) => {
     ) VALUES (
       $1,
       CURRENT_DATE,
-      CURRENT_DATE + INTERVAL '10 days',
+      CURRENT_DATE + INTERVAL '360 days',
       $2,
       $3,
       $4,
@@ -382,13 +384,49 @@ const buscarNotaFiscalPorRemessa = async (remessaId, clienteId) => {
 };
 
 /**
- * Marca a remessa como cancelada (soft cancel) — não deleta os registros.
- * @param {object} client - Client de transação
- * @param {number} remessaId - ID da remessa
- * @param {number} clienteId - ID do cliente
- * @returns {Promise<number>} Quantidade de remessas atualizadas
+ * Cancela todos os créditos de uma remessa (crd_sit_id = 3)
  */
-const marcarRemessaCancelada = async (client, remessaId, clienteId) => {
+const cancelarCreditosPorRemessa = async (client, remessaId, clienteId) => {
+  const sql = `
+    UPDATE crd_usuario_credito
+    SET crd_sit_id = 3
+    WHERE crd_usucrerem_id = $1 AND crd_cli_id = $2
+  `;
+
+  try {
+    const result = await client.query(sql, [remessaId, clienteId]);
+    logger.info('Créditos cancelados:', { remessaId, clienteId, count: result.rowCount });
+    return result.rowCount;
+  } catch (error) {
+    logger.error('Erro ao cancelar créditos:', { error: error.message });
+    throw error;
+  }
+};
+
+/**
+ * Atualiza status da remessa (usa client opcional para participar de transação)
+ */
+const atualizarStatusRemessa = async (remessaId, clienteId, status, client = null) => {
+  const sql = `
+    UPDATE crd_usuario_credito_remessa
+    SET crd_rem_status = $1
+    WHERE crd_usucrerem_id = $2 AND crd_cli_id = $3
+  `;
+  const executor = client || db;
+  try {
+    const result = await executor.query(sql, [status, remessaId, clienteId]);
+    logger.info('Status da remessa atualizado:', { remessaId, clienteId, status });
+    return result.rowCount;
+  } catch (error) {
+    logger.error('Erro ao atualizar status da remessa:', { error: error.message });
+    throw error;
+  }
+};
+
+/**
+ * Cancela a remessa (crd_rem_status = 'C')
+ */
+const cancelarRemessaRepo = async (client, remessaId, clienteId) => {
   const sql = `
     UPDATE crd_usuario_credito_remessa
     SET crd_rem_status = 'C'
@@ -397,36 +435,30 @@ const marcarRemessaCancelada = async (client, remessaId, clienteId) => {
 
   try {
     const result = await client.query(sql, [remessaId, clienteId]);
-    logger.info('Remessa marcada como cancelada:', { remessaId, clienteId });
+    logger.info('Remessa cancelada:', { remessaId, clienteId });
     return result.rowCount;
   } catch (error) {
-    logger.error('Erro ao marcar remessa como cancelada:', { error: error.message });
+    logger.error('Erro ao cancelar remessa:', { error: error.message });
     throw error;
   }
 };
 
 /**
- * Marca a nota fiscal/boleto como cancelado (soft cancel).
- * Mantém o registro ativo (crd_not_situacao='A') para o histórico continuar
- * exibindo os dados; apenas atualiza o status do boleto.
- * @param {object} client - Client de transação
- * @param {number} notaId - ID da nota fiscal
- * @returns {Promise<number>} Quantidade de notas atualizadas
+ * Cancela a nota fiscal (crd_not_situacao = 'C')
  */
-const marcarNotaFiscalCancelada = async (client, notaId) => {
+const cancelarNotaFiscal = async (client, notaId) => {
   const sql = `
     UPDATE crd_nota_fiscal
-    SET crd_not_boleto_status = 'canceled',
-        crd_not_boleto_status_atualizado_em = NOW()
+    SET crd_not_situacao = 'C'
     WHERE crd_not_id = $1
   `;
 
   try {
     const result = await client.query(sql, [notaId]);
-    logger.info('Nota fiscal marcada como cancelada:', { notaId });
+    logger.info('Nota fiscal cancelada:', { notaId });
     return result.rowCount;
   } catch (error) {
-    logger.error('Erro ao marcar nota fiscal como cancelada:', { error: error.message });
+    logger.error('Erro ao cancelar nota fiscal:', { error: error.message });
     throw error;
   }
 };
@@ -440,6 +472,8 @@ module.exports = {
   buscarHistorico,
   buscarDetalheRemessa,
   buscarNotaFiscalPorRemessa,
-  marcarRemessaCancelada,
-  marcarNotaFiscalCancelada
+  cancelarCreditosPorRemessa,
+  cancelarRemessaRepo,
+  cancelarNotaFiscal,
+  atualizarStatusRemessa
 };

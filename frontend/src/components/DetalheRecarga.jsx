@@ -16,6 +16,7 @@ const DetalheRecarga = ({ clienteId, remessaId, onVoltar }) => {
   const [mostrarQrCode, setMostrarQrCode] = useState(false);
   const [cancelando, setCancelando] = useState(false);
   const [mostrarConfirmacao, setMostrarConfirmacao] = useState(false);
+  const [reemitindo, setReemitindo] = useState(false);
 
   useEffect(() => {
     if (clienteId && remessaId) {
@@ -47,6 +48,20 @@ const DetalheRecarga = ({ clienteId, remessaId, onVoltar }) => {
     return (parseFloat(valor) || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
   };
 
+  const handleReemitirBoleto = async () => {
+    setReemitindo(true);
+    try {
+      await creditosAPI.reemitirBoleto(clienteId, remessaId);
+      alert('Boleto gerado com sucesso!');
+      carregarDetalhes();
+    } catch (err) {
+      const msg = err.response?.data?.message || err.response?.data?.error || 'Erro ao gerar boleto';
+      alert(msg);
+    } finally {
+      setReemitindo(false);
+    }
+  };
+
   const handleCancelar = async () => {
     setCancelando(true);
     try {
@@ -60,15 +75,6 @@ const DetalheRecarga = ({ clienteId, remessaId, onVoltar }) => {
       setCancelando(false);
       setMostrarConfirmacao(false);
     }
-  };
-
-  const formatarStatusBadge = (status) => {
-    const s = (status || '').toLowerCase();
-    if (s === 'paid' || s === 'settled') return { label: 'Pago', bg: '#dcfce7', color: '#15803d', border: '#86efac' };
-    if (s === 'canceled' || s === 'cancelled') return { label: 'Cancelado', bg: '#fef2f2', color: '#b91c1c', border: '#fecaca' };
-    if (s === 'expired') return { label: 'Vencido', bg: '#fef2f2', color: '#b91c1c', border: '#fecaca' };
-    if (s === 'waiting' || s === 'active' || s === 'pending') return { label: 'Aguardando pagamento', bg: '#fef3c7', color: '#b45309', border: '#fcd34d' };
-    return null;
   };
 
   const formatarCPF = (cpf) => {
@@ -118,11 +124,6 @@ const DetalheRecarga = ({ clienteId, remessaId, onVoltar }) => {
   const taxa = dados.taxa || 0;
   const totalDesconto = taxa > 0 ? Math.round((dados.valor_bruto - dados.valor_liquido) * 100) / 100 : 0;
 
-  // Resolve status visual: usa status do boleto; se NF existe sem status -> waiting; se nem NF -> canceled
-  const statusEfetivo = dados.boleto?.status || (dados.boleto ? 'waiting' : 'canceled');
-  const statusBadge = formatarStatusBadge(statusEfetivo);
-  const remessaCancelada = statusEfetivo === 'canceled' || statusEfetivo === 'cancelled';
-
   return (
     <div className="detalhe-recarga">
       <button className="btn-voltar" onClick={onVoltar}>
@@ -136,27 +137,12 @@ const DetalheRecarga = ({ clienteId, remessaId, onVoltar }) => {
         <div>
           <div className="page-header-info" style={{ marginBottom: '4px' }}>
             <h2 className="page-title">Remessa #{remessaId}</h2>
-            {statusBadge && (
-              <span style={{
-                background: statusBadge.bg,
-                color: statusBadge.color,
-                border: `1px solid ${statusBadge.border}`,
-                padding: '4px 12px',
-                borderRadius: '999px',
-                fontWeight: '600',
-                fontSize: '0.78rem',
-                textTransform: 'uppercase',
-                letterSpacing: '0.4px',
-                whiteSpace: 'nowrap'
-              }}>
-                {statusBadge.label}
-              </span>
-            )}
+            <span className="badge badge-ativo">PROCESSADA</span>
           </div>
           <p className="page-subtitle">Detalhes completos da recarga</p>
         </div>
         <div className="page-header-actions" style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-          {dados.boleto && dados.boleto.nota_fiscal_id && !remessaCancelada && (
+          {dados.boleto && dados.boleto.nota_fiscal_id && (
             <>
               <button className="btn-secundario" style={{ padding: '8px 16px', fontSize: '0.82rem', display: 'flex', alignItems: 'center', gap: '6px' }}
                 onClick={() => setMostrarQrCode(true)}>
@@ -186,35 +172,59 @@ const DetalheRecarga = ({ clienteId, remessaId, onVoltar }) => {
             </svg>
             Relatório
           </button>
-          {!remessaCancelada && (
-          <button
-            onClick={() => setMostrarConfirmacao(true)}
-            disabled={cancelando}
-            style={{
-              padding: '8px 16px', fontSize: '0.82rem', display: 'flex', alignItems: 'center', gap: '6px',
-              background: '#fef2f2', color: '#dc2626', border: '1px solid #fecaca', borderRadius: '8px',
-              cursor: cancelando ? 'not-allowed' : 'pointer', fontWeight: '500'
-            }}
-          >
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#dc2626" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/>
-            </svg>
-            {cancelando ? 'Cancelando...' : 'Cancelar Remessa'}
-          </button>
+          {dados.status === 'E' && (
+            <button
+              onClick={handleReemitirBoleto}
+              disabled={reemitindo}
+              style={{
+                padding: '8px 16px', fontSize: '0.82rem', display: 'flex', alignItems: 'center', gap: '6px',
+                background: '#fffbeb', color: '#b45309', border: '1px solid #fde68a', borderRadius: '8px',
+                cursor: reemitindo ? 'not-allowed' : 'pointer', fontWeight: '500'
+              }}
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#b45309" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/>
+              </svg>
+              {reemitindo ? 'Gerando...' : 'Tentar Gerar Boleto'}
+            </button>
+          )}
+          {dados.status !== 'C' && (
+            <button
+              onClick={() => setMostrarConfirmacao(true)}
+              disabled={cancelando}
+              style={{
+                padding: '8px 16px', fontSize: '0.82rem', display: 'flex', alignItems: 'center', gap: '6px',
+                background: '#fef2f2', color: '#dc2626', border: '1px solid #fecaca', borderRadius: '8px',
+                cursor: cancelando ? 'not-allowed' : 'pointer', fontWeight: '500'
+              }}
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#dc2626" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/>
+              </svg>
+              {cancelando ? 'Cancelando...' : 'Cancelar Remessa'}
+            </button>
+          )}
+          {dados.status === 'C' && (
+            <span style={{
+              padding: '8px 16px', fontSize: '0.82rem', background: '#fef2f2',
+              color: '#dc2626', border: '1px solid #fecaca', borderRadius: '8px', fontWeight: '700'
+            }}>
+              REMESSA CANCELADA
+            </span>
           )}
         </div>
       </div>
 
       {/* Info Cards Row */}
       <div style={{
-        display: 'flex',
+        display: 'grid',
+        gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
         gap: '12px',
-        marginBottom: '24px',
-        flexWrap: 'wrap'
+        marginBottom: '24px'
       }}>
         {/* Empresa */}
         {dados.restaurante && (
-          <div className="section-card" style={{ marginBottom: 0, flex: '1 1 180px', minWidth: '160px' }}>
+          <div className="section-card" style={{ marginBottom: 0 }}>
             <div className="form-label-upper">Empresa</div>
             <div className="info-value">{dados.restaurante}</div>
           </div>
@@ -222,29 +232,27 @@ const DetalheRecarga = ({ clienteId, remessaId, onVoltar }) => {
 
         {/* Título da Remessa */}
         {dados.titulo && (
-          <div className="section-card" style={{ marginBottom: 0, flex: '1 1 180px', minWidth: '160px' }}>
+          <div className="section-card" style={{ marginBottom: 0 }}>
             <div className="form-label-upper">Título</div>
             <div className="info-value">{dados.titulo}</div>
           </div>
         )}
 
         {/* Operador */}
-        <div className="section-card" style={{ marginBottom: 0, flex: '2 1 280px', minWidth: '240px' }}>
+        <div className="section-card" style={{ marginBottom: 0 }}>
           <div className="form-label-upper">Operador</div>
-          <div className="info-value" style={{ wordBreak: 'break-all', overflowWrap: 'anywhere' }}>
-            {dados.criado_por || '-'}
-          </div>
+          <div className="info-value">{dados.criado_por || '-'}</div>
         </div>
 
         {/* Data */}
-        <div className="section-card" style={{ marginBottom: 0, flex: '1 1 180px', minWidth: '160px' }}>
+        <div className="section-card" style={{ marginBottom: 0 }}>
           <div className="form-label-upper">Data de Criação</div>
           <div className="info-value">{formatarData(dados.data_criacao)}</div>
         </div>
 
         {/* Total Colaboradores */}
-        <div className="section-card" style={{ marginBottom: 0, flex: '0 1 130px', minWidth: '110px' }}>
-          <div className="form-label-upper">Colab.</div>
+        <div className="section-card" style={{ marginBottom: 0 }}>
+          <div className="form-label-upper">Colaboradores</div>
           <div className="info-value" style={{ fontWeight: '700', color: 'var(--roxo)' }}>{dados.total_colaboradores}</div>
         </div>
       </div>
@@ -426,9 +434,10 @@ const DetalheRecarga = ({ clienteId, remessaId, onVoltar }) => {
               Esta ação irá:
             </p>
             <ul style={{ textAlign: 'left', margin: '0 0 20px', padding: '0 20px', color: '#6b7280', fontSize: '0.85rem', lineHeight: '1.8' }}>
-              <li>Cancelar o boleto na EFI (se estiver em aberto)</li>
-              <li>Marcar a remessa como cancelada</li>
-              <li>Os créditos e a nota fiscal são preservados para histórico</li>
+              <li>Cancelar o boleto (se estiver aberto)</li>
+              <li>Excluir todos os créditos dos colaboradores</li>
+              <li>Excluir a nota fiscal</li>
+              <li>Excluir a remessa</li>
             </ul>
 
             <p style={{ margin: '0 0 24px', color: '#dc2626', fontSize: '0.82rem', fontWeight: '600' }}>

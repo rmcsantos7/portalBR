@@ -336,7 +336,7 @@ const FormColaborador = ({ clienteId, colaboradorId, login, onVoltar }) => {
         display: 'flex', gap: '0', marginBottom: '14px',
         borderBottom: '2px solid var(--cinza-300)'
       }}>
-        {['cadastro', 'financeiro', 'historico'].map(tab => (
+        {(isNovo ? ['cadastro'] : ['cadastro', 'financeiro', 'historico']).map(tab => (
           <button
             key={tab}
             onClick={() => setTabAtiva(tab)}

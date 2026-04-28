@@ -11,6 +11,11 @@ import {
   gerarPdfColaboradores,
   gerarPdfHistoricoColaborador
 } from '../utils/pdfGenerator';
+import {
+  gerarExcelRecargasPeriodo,
+  gerarExcelColaboradores,
+  gerarExcelHistoricoColaborador
+} from '../utils/excelGenerator';
 
 // Helpers
 const hoje = () => new Date().toISOString().split('T')[0];
@@ -106,13 +111,14 @@ const RelatoriosPage = () => {
 
   // ---- GERAR RELATÓRIOS ----
 
-  const gerarRelRecargasPeriodo = async () => {
+  const gerarRelRecargasPeriodo = async (formato = 'pdf') => {
     if (!recDataInicio || !recDataFim) { setErro('Preencha as datas do período'); return; }
-    setLoadingRel('recargas'); setErro(null); setSucesso(null);
+    setLoadingRel(`recargas-${formato}`); setErro(null); setSucesso(null);
     try {
       const res = await relatoriosAPI.recargasPeriodo(clienteId, recDataInicio, recDataFim);
-      gerarPdfRecargasPeriodo(res.data.data);
-      setSucesso('Relatório de Recargas gerado com sucesso!');
+      if (formato === 'excel') gerarExcelRecargasPeriodo(res.data.data);
+      else gerarPdfRecargasPeriodo(res.data.data);
+      setSucesso(`Relatório de Recargas gerado em ${formato.toUpperCase()}!`);
     } catch (err) {
       setErro(err.response?.data?.error || 'Erro ao gerar relatório');
     } finally {
@@ -120,12 +126,13 @@ const RelatoriosPage = () => {
     }
   };
 
-  const gerarRelColaboradores = async () => {
-    setLoadingRel('colaboradores'); setErro(null); setSucesso(null);
+  const gerarRelColaboradores = async (formato = 'pdf') => {
+    setLoadingRel(`colaboradores-${formato}`); setErro(null); setSucesso(null);
     try {
       const res = await relatoriosAPI.colaboradores(clienteId);
-      gerarPdfColaboradores(res.data.data);
-      setSucesso('Relatório de Colaboradores gerado com sucesso!');
+      if (formato === 'excel') gerarExcelColaboradores(res.data.data);
+      else gerarPdfColaboradores(res.data.data);
+      setSucesso(`Relatório de Colaboradores gerado em ${formato.toUpperCase()}!`);
     } catch (err) {
       setErro(err.response?.data?.error || 'Erro ao gerar relatório');
     } finally {
@@ -133,14 +140,15 @@ const RelatoriosPage = () => {
     }
   };
 
-  const gerarRelHistoricoColaborador = async () => {
+  const gerarRelHistoricoColaborador = async (formato = 'pdf') => {
     if (!histColabId) { setErro('Selecione um colaborador'); return; }
     if (!histDataInicio || !histDataFim) { setErro('Preencha as datas do período'); return; }
-    setLoadingRel('historico'); setErro(null); setSucesso(null);
+    setLoadingRel(`historico-${formato}`); setErro(null); setSucesso(null);
     try {
       const res = await relatoriosAPI.historicoColaborador(clienteId, histColabId, histDataInicio, histDataFim);
-      gerarPdfHistoricoColaborador(res.data.data);
-      setSucesso('Histórico do Colaborador gerado com sucesso!');
+      if (formato === 'excel') gerarExcelHistoricoColaborador(res.data.data);
+      else gerarPdfHistoricoColaborador(res.data.data);
+      setSucesso(`Histórico do Colaborador gerado em ${formato.toUpperCase()}!`);
     } catch (err) {
       setErro(err.response?.data?.error || 'Erro ao gerar relatório');
     } finally {
@@ -173,15 +181,29 @@ const RelatoriosPage = () => {
       borderRadius: '8px', cursor: 'pointer', display: 'flex',
       alignItems: 'center', gap: '6px', whiteSpace: 'nowrap',
       transition: 'opacity 0.2s ease'
+    },
+    btnExcel: {
+      padding: '9px 20px', fontSize: '0.85rem', fontWeight: 700,
+      background: '#059669', color: '#fff', border: 'none',
+      borderRadius: '8px', cursor: 'pointer', display: 'flex',
+      alignItems: 'center', gap: '6px', whiteSpace: 'nowrap',
+      transition: 'opacity 0.2s ease'
     }
   };
+
+  const iconeDoc = (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+      <polyline points="14 2 14 8 20 8" />
+    </svg>
+  );
 
   return (
     <div style={estilos.page}>
       <div className="page-header">
         <div>
           <h2 className="page-title">Relatórios</h2>
-          <p className="page-subtitle">Gere relatórios em PDF para análise e acompanhamento</p>
+          <p className="page-subtitle">Gere relatórios em PDF ou Excel para análise e acompanhamento</p>
         </div>
       </div>
 
@@ -221,15 +243,20 @@ const RelatoriosPage = () => {
             <input type="date" value={recDataFim} onChange={e => setRecDataFim(e.target.value)} style={estilos.input} />
           </div>
           <button
-            style={{ ...estilos.btnGerar, opacity: loadingRel === 'recargas' ? 0.6 : 1 }}
-            onClick={gerarRelRecargasPeriodo}
+            style={{ ...estilos.btnGerar, opacity: loadingRel === 'recargas-pdf' ? 0.6 : 1 }}
+            onClick={() => gerarRelRecargasPeriodo('pdf')}
             disabled={!!loadingRel}
           >
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-              <polyline points="14 2 14 8 20 8" />
-            </svg>
-            {loadingRel === 'recargas' ? 'Gerando...' : 'Gerar PDF'}
+            {iconeDoc}
+            {loadingRel === 'recargas-pdf' ? 'Gerando...' : 'Gerar PDF'}
+          </button>
+          <button
+            style={{ ...estilos.btnExcel, opacity: loadingRel === 'recargas-excel' ? 0.6 : 1 }}
+            onClick={() => gerarRelRecargasPeriodo('excel')}
+            disabled={!!loadingRel}
+          >
+            {iconeDoc}
+            {loadingRel === 'recargas-excel' ? 'Gerando...' : 'Gerar Excel'}
           </button>
         </div>
       </div>
@@ -253,15 +280,20 @@ const RelatoriosPage = () => {
 
         <div style={estilos.formRow}>
           <button
-            style={{ ...estilos.btnGerar, opacity: loadingRel === 'colaboradores' ? 0.6 : 1 }}
-            onClick={gerarRelColaboradores}
+            style={{ ...estilos.btnGerar, opacity: loadingRel === 'colaboradores-pdf' ? 0.6 : 1 }}
+            onClick={() => gerarRelColaboradores('pdf')}
             disabled={!!loadingRel}
           >
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-              <polyline points="14 2 14 8 20 8" />
-            </svg>
-            {loadingRel === 'colaboradores' ? 'Gerando...' : 'Gerar PDF'}
+            {iconeDoc}
+            {loadingRel === 'colaboradores-pdf' ? 'Gerando...' : 'Gerar PDF'}
+          </button>
+          <button
+            style={{ ...estilos.btnExcel, opacity: loadingRel === 'colaboradores-excel' ? 0.6 : 1 }}
+            onClick={() => gerarRelColaboradores('excel')}
+            disabled={!!loadingRel}
+          >
+            {iconeDoc}
+            {loadingRel === 'colaboradores-excel' ? 'Gerando...' : 'Gerar Excel'}
           </button>
         </div>
       </div>
@@ -342,15 +374,20 @@ const RelatoriosPage = () => {
             <input type="date" value={histDataFim} onChange={e => setHistDataFim(e.target.value)} style={estilos.input} />
           </div>
           <button
-            style={{ ...estilos.btnGerar, opacity: loadingRel === 'historico' ? 0.6 : !histColabId ? 0.5 : 1 }}
-            onClick={gerarRelHistoricoColaborador}
+            style={{ ...estilos.btnGerar, opacity: loadingRel === 'historico-pdf' ? 0.6 : !histColabId ? 0.5 : 1 }}
+            onClick={() => gerarRelHistoricoColaborador('pdf')}
             disabled={!!loadingRel || !histColabId}
           >
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-              <polyline points="14 2 14 8 20 8" />
-            </svg>
-            {loadingRel === 'historico' ? 'Gerando...' : 'Gerar PDF'}
+            {iconeDoc}
+            {loadingRel === 'historico-pdf' ? 'Gerando...' : 'Gerar PDF'}
+          </button>
+          <button
+            style={{ ...estilos.btnExcel, opacity: loadingRel === 'historico-excel' ? 0.6 : !histColabId ? 0.5 : 1 }}
+            onClick={() => gerarRelHistoricoColaborador('excel')}
+            disabled={!!loadingRel || !histColabId}
+          >
+            {iconeDoc}
+            {loadingRel === 'historico-excel' ? 'Gerando...' : 'Gerar Excel'}
           </button>
         </div>
       </div>
