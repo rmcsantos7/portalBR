@@ -7,8 +7,14 @@ const router = express.Router();
 const authController = require('../controllers/auth.controller');
 const authMiddleware = require('../middlewares/auth');
 
-// Login (público)
+// Login etapa 1 — valida credenciais (público)
 router.post('/login', authController.login);
+
+// 2FA etapa 2 — envia código por sms/email (público; usa challenge_token)
+router.post('/2fa/enviar', authController.enviar2FA);
+
+// 2FA etapa 3 — valida código e devolve JWT final (público; usa challenge_token)
+router.post('/2fa/verificar', authController.verificar2FA);
 
 // Recuperação de senha (público)
 router.post('/recuperar-senha', authController.recuperarSenha);

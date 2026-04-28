@@ -14,6 +14,18 @@ const login = asyncHandler(async (req, res) => {
   return res.status(200).json(resultado);
 });
 
+const enviar2FA = asyncHandler(async (req, res) => {
+  const { challenge_token, metodo } = req.body;
+  const resultado = await authService.enviarCodigo2FA(challenge_token, metodo);
+  return res.status(200).json(resultado);
+});
+
+const verificar2FA = asyncHandler(async (req, res) => {
+  const { challenge_token, codigo } = req.body;
+  const resultado = await authService.verificarCodigo2FA(challenge_token, codigo);
+  return res.status(200).json(resultado);
+});
+
 /**
  * GET /api/auth/me
  * Retorna dados do usuário logado (do token)
@@ -75,6 +87,8 @@ const trocarCliente = asyncHandler(async (req, res) => {
 
 module.exports = {
   login,
+  enviar2FA,
+  verificar2FA,
   me,
   recuperarSenha,
   trocarSenha,

@@ -70,8 +70,27 @@ export function AuthProvider({ children }) {
     return () => { cancelado = true; };
   }, []);
 
-  const login = useCallback(async (loginStr, senha, lembrar = false) => {
+  /**
+   * Etapa 1 do login — valida credenciais. Retorna dados do challenge 2FA.
+   */
+  const iniciarLogin = useCallback(async (loginStr, senha) => {
     const res = await api.post('/auth/login', { login: loginStr, senha });
+    return res.data.data; // { challenge_token, awaiting_2fa, contato }
+  }, []);
+
+  /**
+   * Etapa 2 — solicita envio do código de 6 dígitos via sms ou email.
+   */
+  const enviar2FA = useCallback(async (challengeToken, metodo) => {
+    const res = await api.post('/auth/2fa/enviar', { challenge_token: challengeToken, metodo });
+    return res.data.data; // { challenge_token, metodo }
+  }, []);
+
+  /**
+   * Etapa 3 — valida o código. Se ok, persiste o token e usuário.
+   */
+  const verificar2FA = useCallback(async (challengeToken, codigo, lembrar = false) => {
+    const res = await api.post('/auth/2fa/verificar', { challenge_token: challengeToken, codigo });
     const { token, senha_temporaria: senhaTemp, usuario: usr } = res.data.data;
     setToken(token, lembrar);
     setUsuario(usr);
@@ -113,9 +132,11 @@ export function AuthProvider({ children }) {
 
   // Memoizar o value para evitar re-renders desnecessários
   const value = useMemo(() => ({
-    usuario, carregando, login, logout, atualizarToken, trocarCliente,
+    usuario, carregando,
+    iniciarLogin, enviar2FA, verificar2FA,
+    logout, atualizarToken, trocarCliente,
     autenticado: !!usuario, senhaTemporaria
-  }), [usuario, carregando, login, logout, atualizarToken, trocarCliente, senhaTemporaria]);
+  }), [usuario, carregando, iniciarLogin, enviar2FA, verificar2FA, logout, atualizarToken, trocarCliente, senhaTemporaria]);
 
   return (
     <AuthContext.Provider value={value}>

@@ -4,7 +4,10 @@
  */
 
 const crypto = require('crypto');
+const https = require('https');
+const constants = require('constants');
 const jwt = require('jsonwebtoken');
+const nodemailer = require('nodemailer');
 
 const authRepository = require('../repositories/auth.repository');
 const { APIError } = require('../middlewares/errorHandler');
@@ -34,7 +37,141 @@ const verificarSenha = (usuario, senha) => {
 };
 
 /**
- * Realiza login
+ * Mascara um email: r***@dominio.com
+ */
+const mascararEmail = (email) => {
+  if (!email || typeof email !== 'string') return null;
+  const [user, domain] = email.split('@');
+  if (!domain) return null;
+  const visible = user.slice(0, 1);
+  return `${visible}${'*'.repeat(Math.max(1, user.length - 1))}@${domain}`;
+};
+
+/**
+ * Mascara um celular: (11) 9****-1234
+ */
+const mascararCelular = (celular) => {
+  if (!celular) return null;
+  const limpo = String(celular).replace(/\D/g, '');
+  if (limpo.length < 4) return null;
+  const fim = limpo.slice(-4);
+  return '*'.repeat(Math.max(1, limpo.length - 4)) + fim;
+};
+
+/**
+ * Gera código numérico de 6 dígitos
+ */
+const gerarCodigo2FA = () => {
+  return String(Math.floor(100000 + Math.random() * 900000));
+};
+
+/**
+ * Envia SMS via Brasilfone HTTP API.
+ * Configuração lida de crd_dados_sensiveis pk=2.
+ */
+const enviarSMS = async (numero, mensagem) => {
+  const cfg = await authRepository.buscarConfigSMS();
+  if (!cfg || !cfg.host) {
+    throw new APIError('Configuração de SMS não disponível', 500);
+  }
+  const numeroLimpo = String(numero).replace(/\D/g, '');
+  const params = new URLSearchParams({
+    numero: numeroLimpo,
+    str: mensagem,
+    token: cfg.token || '',
+    size: '2'
+  });
+  // host pode vir com '?' ao final — normaliza
+  const baseUrl = cfg.host.endsWith('?') ? cfg.host.slice(0, -1) : cfg.host;
+  const url = new URL(`${baseUrl}?${params.toString()}`);
+
+  // O servidor da Brasilfone usa OpenSSL antigo e exige renegociação TLS,
+  // que é desabilitada por padrão no Node moderno. Habilita explicitamente.
+  const agent = new https.Agent({
+    secureOptions: constants.SSL_OP_LEGACY_SERVER_CONNECT,
+    rejectUnauthorized: false
+  });
+
+  return new Promise((resolve, reject) => {
+    const req = https.request({
+      hostname: url.hostname,
+      port: url.port || 443,
+      path: `${url.pathname}${url.search}`,
+      method: 'GET',
+      agent
+    }, (resp) => {
+      let body = '';
+      resp.on('data', chunk => { body += chunk; });
+      resp.on('end', () => {
+        logger.info('SMS enviado (resposta provedor):', { status: resp.statusCode, preview: body.slice(0, 200) });
+        // O provedor às vezes responde HTTP 200 mas com erro no corpo (ex: token inválido)
+        let corpoStatus = resp.statusCode;
+        try {
+          const json = JSON.parse(body);
+          if (json && typeof json.status === 'number') corpoStatus = json.status;
+        } catch { /* corpo não é JSON, mantém status HTTP */ }
+        if (corpoStatus >= 200 && corpoStatus < 300) {
+          resolve();
+        } else {
+          reject(new APIError('Falha ao enviar SMS', 500));
+        }
+      });
+    });
+    req.on('error', (err) => {
+      logger.error('Erro ao chamar provedor SMS:', { error: err.message });
+      reject(new APIError('Erro ao enviar SMS — tente outro método', 500));
+    });
+    req.end();
+  });
+};
+
+/**
+ * Envia código por email usando SMTP (crd_dados_sensiveis pk=1)
+ */
+const enviarCodigoPorEmail = async (usuario, codigo) => {
+  const smtp = await authRepository.buscarConfigSMTP(1);
+  if (!smtp) {
+    throw new APIError('Configuração de email não disponível', 500);
+  }
+  const portaNum = parseInt(smtp.porta, 10) || 587;
+  const transporter = nodemailer.createTransport({
+    host: smtp.host,
+    port: portaNum,
+    secure: portaNum === 465,
+    auth: { user: smtp.usuario, pass: smtp.senha },
+    tls: { rejectUnauthorized: false }
+  });
+
+  const html = `
+    <div style="font-family: 'Nunito', Arial, sans-serif; max-width: 500px; margin: 0 auto; padding: 30px;">
+      <div style="background: #4A1D4F; border-radius: 12px; padding: 30px; text-align: center;">
+        ${smtp.logo_url ? `<img src="${smtp.logo_url}" alt="Logo" style="max-height: 50px; margin-bottom: 20px;" />` : ''}
+        <h2 style="color: #fff; margin: 0 0 10px; font-size: 22px;">Código de verificação</h2>
+        <p style="color: rgba(255,255,255,0.8); font-size: 14px; margin: 0 0 25px;">
+          Olá <strong>${usuario.usr_nome}</strong>, use o código abaixo para concluir seu login.
+        </p>
+        <div style="background: rgba(255,255,255,0.1); border-radius: 8px; padding: 24px; margin-bottom: 18px;">
+          <p style="color: #F9678C; font-size: 32px; font-weight: 800; letter-spacing: 8px; margin: 0; font-family: monospace;">
+            ${codigo}
+          </p>
+        </div>
+        <p style="color: rgba(255,255,255,0.6); font-size: 12px; margin: 0;">
+          O código expira em 5 minutos. Se você não solicitou, ignore este email.
+        </p>
+      </div>
+    </div>
+  `;
+
+  await transporter.sendMail({
+    from: `"BR Gorjeta" <${smtp.remetente || smtp.usuario}>`,
+    to: usuario.usr_email,
+    subject: 'Código de verificação — BR Gorjeta',
+    html
+  });
+};
+
+/**
+ * Etapa 1 — valida login + senha e gera challenge_token de 2FA.
  */
 const login = async (loginUsuario, senha) => {
   if (!loginUsuario || !senha) {
@@ -43,49 +180,36 @@ const login = async (loginUsuario, senha) => {
 
   try {
     const usuario = await authRepository.buscarUsuarioPorLogin(loginUsuario);
-    if (!usuario) {
-      throw new APIError('Usuário ou senha inválidos', 401);
-    }
+    if (!usuario) throw new APIError('Usuário ou senha inválidos', 401);
 
     const valido = verificarSenha(usuario, senha);
+    if (!valido) throw new APIError('Usuário ou senha inválidos', 401);
 
-    if (!valido) {
-      throw new APIError('Usuário ou senha inválidos', 401);
+    // Confere se o usuário tem ao menos um restaurante vinculado antes de pedir 2FA
+    const restaurantes = await authRepository.listarRestaurantesDoUsuario(usuario.usr_codigo);
+    if (!restaurantes || restaurantes.length === 0) {
+      throw new APIError('Nenhum restaurante vinculado a este usuário — contate o suporte', 403);
     }
 
-    // Verificar se é senha temporária
-    const senhaTemporaria = usuario.usr_senha_temporaria === true || usuario.usr_senha_temporaria === 'S';
-
-    // Gerar JWT
-    const token = jwt.sign(
-      {
-        usr_codigo: usuario.usr_codigo,
-        usr_login: usuario.usr_login,
-        usr_nome: usuario.usr_nome,
-        crd_cli_id: usuario.crd_cli_id,
-        cliente_nome: usuario.cliente_nome,
-        cliente_cnpj: usuario.cliente_cnpj,
-        usr_administrador: usuario.usr_administrador,
-        senha_temporaria: senhaTemporaria
-      },
+    const challengeToken = jwt.sign(
+      { phase: 'choose-method', usr_codigo: usuario.usr_codigo },
       JWT_SECRET,
-      { expiresIn: JWT_EXPIRES_IN }
+      { expiresIn: '5m' }
     );
 
-    logger.info('Login realizado:', { login: loginUsuario, usr_codigo: usuario.usr_codigo, senhaTemporaria });
+    logger.info('Login etapa 1 OK — aguardando 2FA:', { login: loginUsuario, usr_codigo: usuario.usr_codigo });
+
+    // O login do usuário é, por convenção do Portal, o próprio email.
+    const emailEfetivo = usuario.usr_email || usuario.usr_login;
 
     return ok({
-      token,
-      senha_temporaria: senhaTemporaria,
-      usuario: {
-        usr_codigo: usuario.usr_codigo,
-        usr_login: usuario.usr_login,
-        usr_nome: usuario.usr_nome,
-        usr_email: usuario.usr_email,
-        crd_cli_id: usuario.crd_cli_id,
-        cliente_nome: usuario.cliente_nome,
-        cliente_cnpj: usuario.cliente_cnpj,
-        usr_administrador: usuario.usr_administrador
+      challenge_token: challengeToken,
+      awaiting_2fa: true,
+      contato: {
+        email_mask: mascararEmail(emailEfetivo),
+        celular_mask: mascararCelular(usuario.usr_celular),
+        tem_email: true,
+        tem_celular: !!usuario.usr_celular
       }
     });
   } catch (error) {
@@ -93,6 +217,127 @@ const login = async (loginUsuario, senha) => {
     logger.error('Erro no login:', { error: error.message });
     throw new APIError('Erro interno no login', 500);
   }
+};
+
+/**
+ * Etapa 2 — gera código de 6 dígitos e envia pelo método escolhido (sms|email).
+ * Retorna novo challenge_token contendo hash do código.
+ */
+const enviarCodigo2FA = async (challengeToken, metodo) => {
+  if (!challengeToken) throw new APIError('challenge_token é obrigatório', 400);
+  if (!['sms', 'email'].includes(metodo)) {
+    throw new APIError('Método inválido — use sms ou email', 400);
+  }
+
+  let payload;
+  try {
+    payload = jwt.verify(challengeToken, JWT_SECRET);
+  } catch {
+    throw new APIError('Sessão de login expirada — faça login novamente', 401);
+  }
+  if (payload.phase !== 'choose-method') {
+    throw new APIError('Token de etapa inválido', 400);
+  }
+
+  const usuario = await authRepository.buscarUsuarioPorCodigo(payload.usr_codigo);
+  if (!usuario) throw new APIError('Usuário não encontrado', 404);
+
+  // O login do usuário é o próprio email
+  const emailEfetivo = usuario.usr_email || usuario.usr_login;
+
+  if (metodo === 'sms' && !usuario.usr_celular) {
+    throw new APIError('Usuário sem celular cadastrado', 400);
+  }
+
+  const codigo = gerarCodigo2FA();
+  const codeHash = md5(`${usuario.usr_codigo}:${codigo}`);
+
+  if (metodo === 'email') {
+    await enviarCodigoPorEmail({ ...usuario, usr_email: emailEfetivo }, codigo);
+  } else {
+    await enviarSMS(usuario.usr_celular, `BR Gorjeta — seu código de verificação é ${codigo}. Expira em 5 minutos.`);
+  }
+
+  const novoChallenge = jwt.sign(
+    { phase: 'verify', usr_codigo: usuario.usr_codigo, code_hash: codeHash, metodo },
+    JWT_SECRET,
+    { expiresIn: '5m' }
+  );
+
+  logger.info('Código 2FA enviado:', { usr_codigo: usuario.usr_codigo, metodo });
+
+  return ok({ challenge_token: novoChallenge, metodo });
+};
+
+/**
+ * Etapa 3 — verifica código de 6 dígitos. Se ok, retorna JWT final + dados do usuário.
+ */
+const verificarCodigo2FA = async (challengeToken, codigo) => {
+  if (!challengeToken) throw new APIError('challenge_token é obrigatório', 400);
+  if (!codigo || !/^\d{6}$/.test(codigo)) {
+    throw new APIError('Código inválido — informe os 6 dígitos', 400);
+  }
+
+  let payload;
+  try {
+    payload = jwt.verify(challengeToken, JWT_SECRET);
+  } catch {
+    throw new APIError('Código expirado — solicite um novo', 401);
+  }
+  if (payload.phase !== 'verify') {
+    throw new APIError('Token de etapa inválido', 400);
+  }
+
+  const codeHash = md5(`${payload.usr_codigo}:${codigo}`);
+  if (codeHash !== payload.code_hash) {
+    throw new APIError('Código incorreto', 401);
+  }
+
+  // Reproduz a lógica do login original com o usuário já autenticado pelo 2FA
+  const usuario = await authRepository.buscarUsuarioPorCodigo(payload.usr_codigo);
+  if (!usuario) throw new APIError('Usuário não encontrado', 404);
+
+  const senhaTemporaria = usuario.usr_senha_temporaria === true || usuario.usr_senha_temporaria === 'S';
+
+  const restaurantes = await authRepository.listarRestaurantesDoUsuario(usuario.usr_codigo);
+  if (!restaurantes || restaurantes.length === 0) {
+    throw new APIError('Nenhum restaurante vinculado a este usuário — contate o suporte', 403);
+  }
+
+  const padrao = restaurantes[0];
+
+  const token = jwt.sign(
+    {
+      usr_codigo: usuario.usr_codigo,
+      usr_login: usuario.usr_login,
+      usr_nome: usuario.usr_nome,
+      crd_cli_id: padrao.crd_cli_id,
+      cliente_nome: padrao.crd_cli_nome_fantasia,
+      cliente_cnpj: padrao.crd_cli_cnpj,
+      usr_administrador: usuario.usr_administrador,
+      senha_temporaria: senhaTemporaria
+    },
+    JWT_SECRET,
+    { expiresIn: JWT_EXPIRES_IN }
+  );
+
+  logger.info('Login 2FA concluído:', { usr_codigo: usuario.usr_codigo, metodo: payload.metodo });
+
+  return ok({
+    token,
+    senha_temporaria: senhaTemporaria,
+    usuario: {
+      usr_codigo: usuario.usr_codigo,
+      usr_login: usuario.usr_login,
+      usr_nome: usuario.usr_nome,
+      usr_email: usuario.usr_email,
+      crd_cli_id: padrao.crd_cli_id,
+      cliente_nome: padrao.crd_cli_nome_fantasia,
+      cliente_cnpj: padrao.crd_cli_cnpj,
+      usr_administrador: usuario.usr_administrador,
+      total_restaurantes: restaurantes.length
+    }
+  });
 };
 
 /**
@@ -109,8 +354,6 @@ const verificarToken = (token) => {
 /**
  * Recuperação de senha — gera senha temporária, salva com MD5 e envia por email
  */
-const nodemailer = require('nodemailer');
-
 const gerarSenhaTemporaria = (tamanho = 8) => {
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789';
   let senha = '';
@@ -215,6 +458,18 @@ const trocarSenha = async (usrCodigo, senhaAtual, novaSenha) => {
     throw new APIError('A nova senha deve ter pelo menos 6 caracteres', 400);
   }
 
+  if (!/[A-Z]/.test(novaSenha)) {
+    throw new APIError('A nova senha deve ter pelo menos uma letra maiúscula', 400);
+  }
+
+  if (!/[0-9]/.test(novaSenha)) {
+    throw new APIError('A nova senha deve ter pelo menos um número', 400);
+  }
+
+  if (!/[^A-Za-z0-9]/.test(novaSenha)) {
+    throw new APIError('A nova senha deve ter pelo menos um caractere especial', 400);
+  }
+
   try {
     const usuario = await authRepository.buscarUsuarioPorCodigo(usrCodigo);
     if (!usuario) {
@@ -258,49 +513,47 @@ const trocarSenha = async (usrCodigo, senhaAtual, novaSenha) => {
 };
 
 /**
- * Lista clientes disponíveis (apenas para administradores)
+ * Lista os restaurantes vinculados ao usuário logado via fr_usuario_role.
  */
 const listarClientes = async (usuario) => {
-  const isAdmin = usuario?.administrador === true || usuario?.usr_administrador === 'S';
-  if (!isAdmin) {
-    throw new APIError('Acesso negado: apenas administradores podem listar clientes', 403);
-  }
+  const usrCodigo = usuario?.codigo || usuario?.usr_codigo;
+  if (!usrCodigo) throw new APIError('Usuário não autenticado', 401);
 
   try {
-    const clientes = await authRepository.listarClientes();
-    return ok(clientes.map(c => ({
+    const restaurantes = await authRepository.listarRestaurantesDoUsuario(usrCodigo);
+    return ok(restaurantes.map(c => ({
       crd_cli_id: c.crd_cli_id,
       crd_cli_nome_fantasia: c.crd_cli_nome_fantasia,
       crd_cli_cnpj: c.crd_cli_cnpj
     })));
   } catch (error) {
     if (error instanceof APIError) throw error;
-    logger.error('Erro ao listar clientes:', { error: error.message });
-    throw new APIError('Erro ao listar clientes', 500);
+    logger.error('Erro ao listar restaurantes do usuário:', { error: error.message });
+    throw new APIError('Erro ao listar restaurantes', 500);
   }
 };
 
 /**
- * Troca o cliente ativo (apenas administradores).
- * Gera um novo token JWT com o novo crd_cli_id.
+ * Troca o restaurante ativo. Valida que o id pertence aos vínculos do usuário
+ * em fr_usuario_role e gera um novo token JWT com o novo crd_cli_id.
  */
 const trocarCliente = async (usuario, novoClienteId) => {
-  const isAdmin = usuario?.administrador === true || usuario?.usr_administrador === 'S';
-  if (!isAdmin) {
-    throw new APIError('Acesso negado: apenas administradores podem trocar de cliente', 403);
-  }
-
   if (!novoClienteId) {
     throw new APIError('cliente_id é obrigatório', 400);
   }
 
+  const usrCodigo = usuario?.codigo || usuario?.usr_codigo;
+  if (!usrCodigo) throw new APIError('Usuário não autenticado', 401);
+
   try {
-    const cliente = await authRepository.buscarClientePorId(novoClienteId);
+    // Restaurantes que esse usuário pode acessar
+    const restaurantes = await authRepository.listarRestaurantesDoUsuario(usrCodigo);
+    const cliente = restaurantes.find(r => r.crd_cli_id === parseInt(novoClienteId, 10));
     if (!cliente) {
-      throw new APIError('Cliente não encontrado', 404);
+      throw new APIError('Restaurante não vinculado a este usuário', 403);
     }
 
-    const usuarioDb = await authRepository.buscarUsuarioPorCodigo(usuario.codigo || usuario.usr_codigo);
+    const usuarioDb = await authRepository.buscarUsuarioPorCodigo(usrCodigo);
     if (!usuarioDb) {
       throw new APIError('Usuário não encontrado', 404);
     }
@@ -320,7 +573,7 @@ const trocarCliente = async (usuario, novoClienteId) => {
       { expiresIn: JWT_EXPIRES_IN }
     );
 
-    logger.info('Admin trocou de cliente:', {
+    logger.info('Usuário trocou de restaurante:', {
       usr_codigo: usuarioDb.usr_codigo,
       novoClienteId: cliente.crd_cli_id
     });
@@ -347,6 +600,8 @@ const trocarCliente = async (usuario, novoClienteId) => {
 
 module.exports = {
   login,
+  enviarCodigo2FA,
+  verificarCodigo2FA,
   verificarToken,
   recuperarSenha,
   trocarSenha,

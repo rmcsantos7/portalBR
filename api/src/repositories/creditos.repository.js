@@ -261,7 +261,7 @@ const criarNotaFiscal = async (client, clienteId, valorBruto, valorServico) => {
     ) VALUES (
       $1,
       CURRENT_DATE,
-      CURRENT_DATE + INTERVAL '360 days',
+      CURRENT_DATE + INTERVAL '10 days',
       $2,
       $3,
       $4,
@@ -382,69 +382,51 @@ const buscarNotaFiscalPorRemessa = async (remessaId, clienteId) => {
 };
 
 /**
- * Exclui todos os créditos de uma remessa
+ * Marca a remessa como cancelada (soft cancel) — não deleta os registros.
  * @param {object} client - Client de transação
  * @param {number} remessaId - ID da remessa
  * @param {number} clienteId - ID do cliente
- * @returns {Promise<number>} Quantidade de créditos excluídos
+ * @returns {Promise<number>} Quantidade de remessas atualizadas
  */
-const excluirCreditosPorRemessa = async (client, remessaId, clienteId) => {
+const marcarRemessaCancelada = async (client, remessaId, clienteId) => {
   const sql = `
-    DELETE FROM crd_usuario_credito
+    UPDATE crd_usuario_credito_remessa
+    SET crd_rem_status = 'C'
     WHERE crd_usucrerem_id = $1 AND crd_cli_id = $2
   `;
 
   try {
     const result = await client.query(sql, [remessaId, clienteId]);
-    logger.info('Créditos excluídos:', { remessaId, clienteId, count: result.rowCount });
+    logger.info('Remessa marcada como cancelada:', { remessaId, clienteId });
     return result.rowCount;
   } catch (error) {
-    logger.error('Erro ao excluir créditos:', { error: error.message });
+    logger.error('Erro ao marcar remessa como cancelada:', { error: error.message });
     throw error;
   }
 };
 
 /**
- * Exclui a remessa
- * @param {object} client - Client de transação
- * @param {number} remessaId - ID da remessa
- * @param {number} clienteId - ID do cliente
- * @returns {Promise<number>} Quantidade excluída
- */
-const excluirRemessa = async (client, remessaId, clienteId) => {
-  const sql = `
-    DELETE FROM crd_usuario_credito_remessa
-    WHERE crd_usucrerem_id = $1 AND crd_cli_id = $2
-  `;
-
-  try {
-    const result = await client.query(sql, [remessaId, clienteId]);
-    logger.info('Remessa excluída:', { remessaId, clienteId });
-    return result.rowCount;
-  } catch (error) {
-    logger.error('Erro ao excluir remessa:', { error: error.message });
-    throw error;
-  }
-};
-
-/**
- * Exclui (ou inativa) a nota fiscal
+ * Marca a nota fiscal/boleto como cancelado (soft cancel).
+ * Mantém o registro ativo (crd_not_situacao='A') para o histórico continuar
+ * exibindo os dados; apenas atualiza o status do boleto.
  * @param {object} client - Client de transação
  * @param {number} notaId - ID da nota fiscal
- * @returns {Promise<number>} Quantidade excluída
+ * @returns {Promise<number>} Quantidade de notas atualizadas
  */
-const excluirNotaFiscal = async (client, notaId) => {
+const marcarNotaFiscalCancelada = async (client, notaId) => {
   const sql = `
-    DELETE FROM crd_nota_fiscal
+    UPDATE crd_nota_fiscal
+    SET crd_not_boleto_status = 'canceled',
+        crd_not_boleto_status_atualizado_em = NOW()
     WHERE crd_not_id = $1
   `;
 
   try {
     const result = await client.query(sql, [notaId]);
-    logger.info('Nota fiscal excluída:', { notaId });
+    logger.info('Nota fiscal marcada como cancelada:', { notaId });
     return result.rowCount;
   } catch (error) {
-    logger.error('Erro ao excluir nota fiscal:', { error: error.message });
+    logger.error('Erro ao marcar nota fiscal como cancelada:', { error: error.message });
     throw error;
   }
 };
@@ -458,7 +440,6 @@ module.exports = {
   buscarHistorico,
   buscarDetalheRemessa,
   buscarNotaFiscalPorRemessa,
-  excluirCreditosPorRemessa,
-  excluirRemessa,
-  excluirNotaFiscal
+  marcarRemessaCancelada,
+  marcarNotaFiscalCancelada
 };

@@ -31,6 +31,21 @@ function AlterarSenhaPage() {
       return;
     }
 
+    if (!/[A-Z]/.test(novaSenha)) {
+      setErro('A nova senha deve ter pelo menos uma letra maiúscula');
+      return;
+    }
+
+    if (!/[0-9]/.test(novaSenha)) {
+      setErro('A nova senha deve ter pelo menos um número');
+      return;
+    }
+
+    if (!/[^A-Za-z0-9]/.test(novaSenha)) {
+      setErro('A nova senha deve ter pelo menos um caractere especial');
+      return;
+    }
+
     if (novaSenha !== confirmar) {
       setErro('As senhas não conferem');
       return;
@@ -145,10 +160,27 @@ function AlterarSenhaPage() {
               type="password"
               value={novaSenha}
               onChange={(e) => setNovaSenha(e.target.value)}
-              placeholder="Mínimo 6 caracteres"
+              placeholder="Digite a nova senha"
               style={estilos.input}
               disabled={enviando}
             />
+            <ul style={{ listStyle: 'none', padding: 0, margin: '6px 0 0', fontSize: '12px' }}>
+              {[
+                { ok: novaSenha.length >= 6, label: 'Mínimo 6 caracteres' },
+                { ok: /[A-Z]/.test(novaSenha), label: 'Uma letra maiúscula' },
+                { ok: /[0-9]/.test(novaSenha), label: 'Um número' },
+                { ok: /[^A-Za-z0-9]/.test(novaSenha), label: 'Um caractere especial' },
+              ].map((req, i) => (
+                <li key={i} style={{
+                  display: 'flex', alignItems: 'center', gap: '6px',
+                  color: req.ok ? '#15803d' : 'var(--cinza-500)',
+                  marginBottom: '2px'
+                }}>
+                  <span>{req.ok ? '✓' : '○'}</span>
+                  {req.label}
+                </li>
+              ))}
+            </ul>
           </div>
 
           <div style={estilos.field}>

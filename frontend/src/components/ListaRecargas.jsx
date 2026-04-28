@@ -89,6 +89,24 @@ const ListaRecargas = ({ clienteId, onNovaRecarga }) => {
     }
   };
 
+  // Mapeia o status do boleto para label/cores
+  const formatarStatus = (status) => {
+    const s = (status || '').toLowerCase();
+    if (s === 'paid' || s === 'settled') {
+      return { label: 'Pago', bg: '#dcfce7', color: '#15803d', border: '#86efac' };
+    }
+    if (s === 'canceled' || s === 'cancelled') {
+      return { label: 'Cancelado', bg: '#fef2f2', color: '#b91c1c', border: '#fecaca' };
+    }
+    if (s === 'expired') {
+      return { label: 'Vencido', bg: '#fef2f2', color: '#b91c1c', border: '#fecaca' };
+    }
+    if (s === 'waiting' || s === 'active' || s === 'pending') {
+      return { label: 'Aguardando pagamento', bg: '#fef3c7', color: '#b45309', border: '#fcd34d' };
+    }
+    return null;
+  };
+
   // Calcula líquido a partir do bruto e taxa
   const calcularLiquido = (valorBruto, taxa) => {
     const bruto = parseFloat(valorBruto) || 0;
@@ -171,14 +189,15 @@ const ListaRecargas = ({ clienteId, onNovaRecarga }) => {
             <table style={{ minWidth: '800px' }}>
               <thead>
                 <tr>
-                  <th style={{ width: '100px' }}>Data</th>
                   <th style={{ width: '90px' }}>Remessa</th>
+                  <th style={{ width: '100px' }}>Data</th>
+                  <th style={{ width: '140px', textAlign: 'center' }}>Status</th>
+                  <th className="align-right" style={{ width: '110px' }}>Bruto</th>
+                  <th className="align-right" style={{ width: '120px' }}>Líquido</th>
+                  <th className="align-right" style={{ width: '90px' }}>Tar. Conv.</th>
                   <th>Empresa</th>
                   <th>Descrição</th>
                   <th className="align-right" style={{ width: '70px' }}>Colab.</th>
-                  <th className="align-right" style={{ width: '110px' }}>Bruto</th>
-                  <th className="align-right" style={{ width: '90px' }}>Tar. Conv.</th>
-                  <th className="align-right" style={{ width: '120px' }}>Líquido</th>
                   <th style={{ width: '100px', textAlign: 'center' }}>Boleto</th>
                 </tr>
               </thead>
@@ -190,7 +209,6 @@ const ListaRecargas = ({ clienteId, onNovaRecarga }) => {
 
                   return (
                     <tr key={r.remessa_id} style={{ cursor: 'pointer' }} onClick={() => setRemessaAberta(r.remessa_id)}>
-                      <td style={{ fontWeight: '500' }}>{formatarData(r.data_criacao)}</td>
                       <td>
                         <span style={{
                           background: 'var(--cinza-100)',
@@ -203,6 +221,42 @@ const ListaRecargas = ({ clienteId, onNovaRecarga }) => {
                         }}>
                           #{r.remessa_id}
                         </span>
+                      </td>
+                      <td style={{ fontWeight: '500' }}>{formatarData(r.data_criacao)}</td>
+                      <td style={{ textAlign: 'center' }}>
+                        {(() => {
+                          let st = formatarStatus(r.boleto_status);
+                          if (!st) {
+                            if (!r.nota_fiscal_id) {
+                              st = formatarStatus('canceled');
+                            } else {
+                              st = formatarStatus('waiting');
+                            }
+                          }
+                          return (
+                            <span style={{
+                              background: st.bg,
+                              color: st.color,
+                              border: `1px solid ${st.border}`,
+                              padding: '3px 10px',
+                              borderRadius: '999px',
+                              fontWeight: '600',
+                              fontSize: '0.75rem',
+                              whiteSpace: 'nowrap'
+                            }}>
+                              {st.label}
+                            </span>
+                          );
+                        })()}
+                      </td>
+                      <td className="align-right" style={{ fontWeight: '500', color: 'var(--cinza-800)' }}>
+                        {formatarMoeda(valorBruto)}
+                      </td>
+                      <td className="align-right" style={{ fontWeight: '700', color: '#491d4e', fontSize: '0.95rem' }}>
+                        {formatarMoeda(valorLiquido)}
+                      </td>
+                      <td className="align-right" style={{ fontSize: '0.8rem', color: taxa > 0 ? 'var(--erro)' : 'var(--cinza-500)' }}>
+                        {taxa > 0 ? `${taxa}%` : '-'}
                       </td>
                       <td style={{ fontWeight: '500' }}>{r.restaurante || '-'}</td>
                       <td style={{ fontSize: '0.85rem', color: 'var(--cinza-600)', maxWidth: '180px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
@@ -220,17 +274,8 @@ const ListaRecargas = ({ clienteId, onNovaRecarga }) => {
                           {r.total_colaboradores}
                         </span>
                       </td>
-                      <td className="align-right" style={{ fontWeight: '500', color: 'var(--cinza-800)' }}>
-                        {formatarMoeda(valorBruto)}
-                      </td>
-                      <td className="align-right" style={{ fontSize: '0.8rem', color: taxa > 0 ? 'var(--erro)' : 'var(--cinza-500)' }}>
-                        {taxa > 0 ? `${taxa}%` : '-'}
-                      </td>
-                      <td className="align-right" style={{ fontWeight: '700', color: '#491d4e', fontSize: '0.95rem' }}>
-                        {formatarMoeda(valorLiquido)}
-                      </td>
                       <td style={{ textAlign: 'center' }} onClick={(e) => e.stopPropagation()}>
-                        {r.nota_fiscal_id ? (
+                        {r.nota_fiscal_id && r.boleto_status !== 'canceled' && r.boleto_status !== 'cancelled' ? (
                           <div style={{ display: 'flex', gap: '4px', justifyContent: 'center' }}>
                             <button
                               title="QR Code PIX"

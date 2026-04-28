@@ -45,7 +45,13 @@ const buscarColaboradores = async (clienteId, search = '', setorId = null, limit
   let paramCount = 3;
 
   if (setorId) {
-    sql += ` AND s.crd_set_id = $${paramCount}`;
+    sql += ` AND (
+      EXISTS (
+        SELECT 1 FROM pgt_categoria_de_colaborador pc
+        WHERE pc.crd_usr_id = u.crd_usr_id AND pc.crd_set_id = $${paramCount}
+      )
+      OR u.crd_set_id = $${paramCount}
+    )`;
     params.push(setorId);
     paramCount++;
   }
@@ -75,7 +81,13 @@ const buscarColaboradores = async (clienteId, search = '', setorId = null, limit
     const countParams = [clienteId, searchPattern];
 
     if (setorId) {
-      countSql += ` AND s.crd_set_id = $3`;
+      countSql += ` AND (
+        EXISTS (
+          SELECT 1 FROM pgt_categoria_de_colaborador pc
+          WHERE pc.crd_usr_id = u.crd_usr_id AND pc.crd_set_id = $3
+        )
+        OR u.crd_set_id = $3
+      )`;
       countParams.push(setorId);
     }
 

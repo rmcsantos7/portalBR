@@ -29,12 +29,16 @@ const PreviewCredito = ({ clienteId, colaboradores: colaboradoresIniciais, onVol
     }))
   );
 
+  const hojeISO = () => new Date().toISOString().split('T')[0];
+  const amanhaISO = () => {
+    const d = new Date();
+    d.setDate(d.getDate() + 1);
+    return d.toISOString().split('T')[0];
+  };
+
   const [tituloRecarga, setTituloRecarga] = useState('');
-  const [dataDisponibilizacao, setDataDisponibilizacao] = useState(() => {
-    const amanha = new Date();
-    amanha.setDate(amanha.getDate() + 1);
-    return amanha.toISOString().split('T')[0];
-  });
+  const [agendar, setAgendar] = useState(false);
+  const [dataDisponibilizacao, setDataDisponibilizacao] = useState(amanhaISO);
   const [sucesso, setSucesso] = useState(null);
 
   /**
@@ -91,7 +95,7 @@ const PreviewCredito = ({ clienteId, colaboradores: colaboradoresIniciais, onVol
 
     const payload = {
       titulo: tituloRecarga.trim() || null,
-      dataDisponibilizacao: dataDisponibilizacao || null,
+      dataDisponibilizacao: agendar ? (dataDisponibilizacao || null) : hojeISO(),
       colaboradores: colaboradores.map(c => ({
         id: c.id || 0,
         cpf: c.cpf || '',
@@ -420,20 +424,54 @@ const PreviewCredito = ({ clienteId, colaboradores: colaboradoresIniciais, onVol
             {tituloRecarga.length}/40
           </div>
         </div>
-        <div style={{ minWidth: '200px' }}>
+        <div style={{ minWidth: '220px' }}>
           <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: '600', color: 'var(--cinza-700)', marginBottom: '6px' }}>
-            Data de disponibilização
+            Agendar recarga
           </label>
-          <input
-            type="date"
-            value={dataDisponibilizacao}
-            onChange={(e) => setDataDisponibilizacao(e.target.value)}
-            disabled={creditoHook.creditoLoading}
-            style={{ padding: '8px 12px', borderRadius: '8px', fontSize: '0.9rem' }}
-          />
-          <div style={{ fontSize: '0.72rem', color: 'var(--cinza-500)', marginTop: '4px' }}>
-            Padrão: dia seguinte
-          </div>
+          <label style={{
+            display: 'inline-flex', alignItems: 'center', gap: '10px',
+            cursor: creditoHook.creditoLoading ? 'not-allowed' : 'pointer',
+            padding: '6px 0'
+          }}>
+            <span style={{
+              position: 'relative', display: 'inline-block',
+              width: '40px', height: '22px',
+              background: agendar ? '#4A1D4F' : '#d1d5db',
+              borderRadius: '999px', transition: 'background 0.2s'
+            }}>
+              <input
+                type="checkbox"
+                checked={agendar}
+                onChange={(e) => setAgendar(e.target.checked)}
+                disabled={creditoHook.creditoLoading}
+                style={{ opacity: 0, width: 0, height: 0, position: 'absolute' }}
+              />
+              <span style={{
+                position: 'absolute', top: '2px', left: agendar ? '20px' : '2px',
+                width: '18px', height: '18px', background: '#fff',
+                borderRadius: '50%', transition: 'left 0.2s',
+                boxShadow: '0 1px 3px rgba(0,0,0,0.2)'
+              }} />
+            </span>
+            <span style={{ fontSize: '0.85rem', color: 'var(--cinza-700)' }}>
+              {agendar ? 'Sim' : 'Não (liberar hoje)'}
+            </span>
+          </label>
+          {agendar && (
+            <div style={{ marginTop: '8px' }}>
+              <input
+                type="date"
+                value={dataDisponibilizacao}
+                min={hojeISO()}
+                onChange={(e) => setDataDisponibilizacao(e.target.value)}
+                disabled={creditoHook.creditoLoading}
+                style={{ padding: '8px 12px', borderRadius: '8px', fontSize: '0.9rem' }}
+              />
+              <div style={{ fontSize: '0.72rem', color: 'var(--cinza-500)', marginTop: '4px' }}>
+                Data de disponibilização do crédito
+              </div>
+            </div>
+          )}
         </div>
       </div>
 

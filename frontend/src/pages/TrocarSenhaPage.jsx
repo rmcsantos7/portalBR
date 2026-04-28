@@ -30,6 +30,21 @@ function TrocarSenhaPage() {
       return;
     }
 
+    if (!/[A-Z]/.test(novaSenha)) {
+      setErro('A nova senha deve ter pelo menos uma letra maiúscula');
+      return;
+    }
+
+    if (!/[0-9]/.test(novaSenha)) {
+      setErro('A nova senha deve ter pelo menos um número');
+      return;
+    }
+
+    if (!/[^A-Za-z0-9]/.test(novaSenha)) {
+      setErro('A nova senha deve ter pelo menos um caractere especial');
+      return;
+    }
+
     if (novaSenha !== confirmar) {
       setErro('As senhas não conferem');
       return;
@@ -56,6 +71,13 @@ function TrocarSenhaPage() {
   };
 
   const logoUrl = `${process.env.PUBLIC_URL}/images/logo-rosa-branca.png`;
+
+  const requisitos = [
+    { ok: novaSenha.length >= 6, label: 'Mínimo 6 caracteres' },
+    { ok: /[A-Z]/.test(novaSenha), label: 'Uma letra maiúscula' },
+    { ok: /[0-9]/.test(novaSenha), label: 'Um número' },
+    { ok: /[^A-Za-z0-9]/.test(novaSenha), label: 'Um caractere especial' },
+  ];
 
   return (
     <div
@@ -96,12 +118,28 @@ function TrocarSenhaPage() {
         <div className="login-field">
           <input
             type="password"
-            placeholder="Nova senha (mínimo 6 caracteres)"
+            placeholder="Nova senha"
             value={novaSenha}
             onChange={(e) => setNovaSenha(e.target.value)}
             disabled={enviando}
           />
         </div>
+
+        <ul style={{
+          listStyle: 'none', padding: 0, margin: '0 0 14px',
+          fontSize: '12px', color: 'rgba(255,255,255,0.75)'
+        }}>
+          {requisitos.map((req, i) => (
+            <li key={i} style={{
+              display: 'flex', alignItems: 'center', gap: '8px',
+              color: req.ok ? '#34d399' : 'rgba(255,255,255,0.65)',
+              marginBottom: '2px'
+            }}>
+              <span style={{ fontSize: '13px' }}>{req.ok ? '✓' : '○'}</span>
+              {req.label}
+            </li>
+          ))}
+        </ul>
 
         <div className="login-field">
           <input

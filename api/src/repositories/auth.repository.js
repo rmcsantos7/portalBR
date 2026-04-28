@@ -17,6 +17,7 @@ const buscarUsuarioPorLogin = async (login) => {
       u.usr_senha,
       u.usr_nome,
       u.usr_email,
+      u.usr_celular,
       u.usr_administrador,
       u.usr_senha_temporaria,
       u.crd_cli_id,
@@ -60,6 +61,7 @@ const buscarUsuarioPorCodigo = async (usrCodigo) => {
       u.usr_senha,
       u.usr_nome,
       u.usr_email,
+      u.usr_celular,
       u.usr_administrador,
       u.usr_senha_temporaria,
       u.crd_cli_id,
@@ -103,23 +105,35 @@ const buscarUsuarioPorEmail = async (email) => {
 };
 
 /**
- * Lista todos os clientes (usado por administradores)
+ * Lista os restaurantes vinculados a um usuário do Portal via fr_usuario_role.
+ * Fallback: se o usuário não tem nenhuma linha em fr_usuario_role mas tem
+ * fr_usuario.crd_cli_id setado (legado), retorna esse único cliente.
  */
-const listarClientes = async () => {
+const listarRestaurantesDoUsuario = async (usrCodigo) => {
   const sql = `
-    SELECT
-      crd_cli_id,
-      crd_cli_nome_fantasia,
-      crd_cli_cnpj
-    FROM crd_cliente
-    ORDER BY crd_cli_nome_fantasia ASC
+    SELECT c.crd_cli_id, c.crd_cli_nome_fantasia, c.crd_cli_cnpj
+      FROM fr_usuario_role r
+      JOIN crd_cliente c ON c.crd_cli_id = r.crd_cli_id
+     WHERE r.usr_codigo = $1
+       AND r.crd_cli_id IS NOT NULL
+     ORDER BY c.crd_cli_nome_fantasia ASC
   `;
 
   try {
-    const result = await db.query(sql);
-    return result.rows;
+    const result = await db.query(sql, [usrCodigo]);
+    if (result.rows.length > 0) return result.rows;
+
+    const fallbackSql = `
+      SELECT c.crd_cli_id, c.crd_cli_nome_fantasia, c.crd_cli_cnpj
+        FROM fr_usuario u
+        JOIN crd_cliente c ON c.crd_cli_id = u.crd_cli_id
+       WHERE u.usr_codigo = $1
+         AND u.crd_cli_id IS NOT NULL
+    `;
+    const fallback = await db.query(fallbackSql, [usrCodigo]);
+    return fallback.rows;
   } catch (error) {
-    logger.error('Erro ao listar clientes:', { error: error.message });
+    logger.error('Erro ao listar restaurantes do usuário:', { error: error.message });
     throw error;
   }
 };
@@ -142,6 +156,28 @@ const buscarClientePorId = async (clienteId) => {
     return result.rows[0] || null;
   } catch (error) {
     logger.error('Erro ao buscar cliente por id:', { error: error.message });
+    throw error;
+  }
+};
+
+/**
+ * Busca configuração SMS (Brasilfone) — crd_dados_sensiveis pk=2
+ */
+const buscarConfigSMS = async () => {
+  const sql = `
+    SELECT
+      crd_dad_host AS host,
+      crd_dad_usuario AS usuario,
+      crd_dad_senha AS token,
+      crd_dad_remetente_principal AS remetente
+    FROM crd_dados_sensiveis
+    WHERE crd_dad_id = 2
+  `;
+  try {
+    const result = await db.query(sql);
+    return result.rows[0] || null;
+  } catch (error) {
+    logger.error('Erro ao buscar config SMS:', { error: error.message });
     throw error;
   }
 };
@@ -178,6 +214,7 @@ module.exports = {
   buscarUsuarioPorEmail,
   buscarUsuarioPorCodigo,
   buscarConfigSMTP,
-  listarClientes,
+  buscarConfigSMS,
+  listarRestaurantesDoUsuario,
   buscarClientePorId
 };

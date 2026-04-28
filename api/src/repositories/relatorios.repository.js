@@ -76,7 +76,7 @@ const buscarColaboradoresCadastrados = async (clienteId) => {
       u.crd_usr_nome AS nome,
       u.crd_usr_cpf AS cpf,
       u.crd_usr_celular AS telefone,
-      u.crd_usu_data_nascimento AS data_nascimento,
+      COALESCE(u.crd_usr_nascimento, u.crd_usu_data_nascimento) AS data_nascimento,
       COALESCE(
         (SELECT STRING_AGG(s.crd_set_setor, ', ' ORDER BY s.crd_set_setor)
          FROM pgt_categoria_de_colaborador pc
