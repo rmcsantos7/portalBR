@@ -200,7 +200,8 @@ const buscarConfigSMS = async () => {
     SELECT
       crd_dad_host AS host,
       crd_dad_senha AS token,
-      crd_dad_tipo_comunicacao AS servico
+      crd_dad_tipo_comunicacao AS servico,
+      crd_dad_usuario AS parceiro_id
     FROM crd_dados_sensiveis
     WHERE crd_dad_id = 2
   `;

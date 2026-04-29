@@ -75,18 +75,27 @@ const gerarCodigo2FA = () => {
  */
 const enviarSMS = async (numero, mensagem) => {
   const cfg = await authRepository.buscarConfigSMS();
-  if (!cfg || !cfg.host || !cfg.token) {
-    logger.warn('SMS não configurado (host/token):', { temHost: !!cfg?.host, temToken: !!cfg?.token });
+  if (!cfg || !cfg.host || !cfg.token || !cfg.servico || !cfg.parceiro_id) {
+    logger.warn('SMS não configurado:', {
+      temHost: !!cfg?.host, temToken: !!cfg?.token,
+      temServico: !!cfg?.servico, temParceiro: !!cfg?.parceiro_id
+    });
     throw new APIError('Configuração de SMS não disponível', 500);
   }
 
   const numeroLimpo = String(numero).replace(/\D/g, '');
-  const mensagemCodificada = String(mensagem).replace(/ /g, '%20');
-  const fullUrl = `${cfg.host}numero=${encodeURIComponent(numeroLimpo)}&str=${mensagemCodificada}&token=${encodeURIComponent(cfg.token)}&size=2`;
-  const url = new URL(fullUrl);
+  const numeroComDDI = numeroLimpo.startsWith('55') ? numeroLimpo : `55${numeroLimpo}`;
+  const payload = JSON.stringify([{
+    numero: numeroComDDI,
+    servico: cfg.servico,
+    mensagem,
+    parceiro_id: cfg.parceiro_id,
+    codificacao: '0'
+  }]);
 
-  // Servidor usa OpenSSL antigo / cert expirado — habilita renegociação legacy
-  // e desabilita validação de cert pra esse provedor específico.
+  const url = new URL(cfg.host);
+
+  // Servidor usa OpenSSL antigo / cert expirado — renegociação legacy + skip cert.
   const agent = new https.Agent({
     secureOptions: constants.SSL_OP_LEGACY_SERVER_CONNECT,
     rejectUnauthorized: false
@@ -97,24 +106,39 @@ const enviarSMS = async (numero, mensagem) => {
       hostname: url.hostname,
       port: url.port || 443,
       path: `${url.pathname}${url.search}`,
-      method: 'GET',
-      agent
+      method: 'POST',
+      agent,
+      headers: {
+        'Authorization': `Bearer ${cfg.token}`,
+        'Content-Type': 'application/json',
+        'Content-Length': Buffer.byteLength(payload)
+      }
     }, (resp) => {
       let body = '';
       resp.on('data', chunk => { body += chunk; });
       resp.on('end', () => {
-        logger.info('SMS enviado (resposta provedor):', { httpStatus: resp.statusCode, preview: body.slice(0, 200) });
-        if (resp.statusCode >= 200 && resp.statusCode < 300) {
-          resolve();
-        } else {
-          reject(new APIError('Falha ao enviar SMS', 500));
-        }
+        logger.info('SMS enviado (resposta provedor):', { httpStatus: resp.statusCode, preview: body.slice(0, 300) });
+        // Provedor pode responder 200 com erro no corpo — checa o status no JSON
+        let okCorpo = resp.statusCode >= 200 && resp.statusCode < 300;
+        try {
+          const json = JSON.parse(body);
+          if (json && typeof json.status === 'number') {
+            okCorpo = json.status >= 200 && json.status < 300;
+          }
+          if (Array.isArray(json?.detail)) {
+            const accepted = json.detail.some(d => d?.status === 'ACCEPTED');
+            okCorpo = okCorpo && accepted;
+          }
+        } catch { /* corpo não é JSON */ }
+        if (okCorpo) resolve();
+        else reject(new APIError('Falha ao enviar SMS', 500));
       });
     });
     req.on('error', (err) => {
       logger.error('Erro ao chamar provedor SMS:', { error: err.message });
       reject(new APIError('Erro ao enviar SMS — tente outro método', 500));
     });
+    req.write(payload);
     req.end();
   });
 };
