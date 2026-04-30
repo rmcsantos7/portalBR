@@ -43,9 +43,10 @@ app.use(helmet({
 }));
 
 // CORS com whitelist de origens permitidas
-const origensPermitidas = (process.env.CORS_ORIGIN || 'http://localhost:3000')
+const origensPermitidas = (process.env.CORS_ORIGIN || 'http://localhost:3000,https://portal-brgorjeta.justit.cloud')
   .split(',')
-  .map(o => o.trim());
+  .map(o => o.trim())
+  .filter(Boolean);
 
 app.use(cors({
   origin: (origin, callback) => {
