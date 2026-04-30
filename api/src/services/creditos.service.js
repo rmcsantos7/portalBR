@@ -416,7 +416,7 @@ const obterDetalheRemessa = async (remessaId, clienteId) => {
  * @param {number} clienteId - ID do cliente
  * @returns {Promise<object>} Resultado do cancelamento
  */
-const cancelarRemessa = async (remessaId, clienteId) => {
+const cancelarRemessa = async (remessaId, clienteId, canceladoPor = null) => {
   if (!remessaId || !clienteId) {
     throw new APIError('remessa_id e cliente_id são obrigatórios', 400);
   }
@@ -478,7 +478,7 @@ const cancelarRemessa = async (remessaId, clienteId) => {
 
     // Cancela nota fiscal (crd_not_situacao = 'C')
     if (notaFiscal && notaFiscal.nota_fiscal_id) {
-      await creditosRepository.cancelarNotaFiscal(client, notaFiscal.nota_fiscal_id);
+      await creditosRepository.cancelarNotaFiscal(client, notaFiscal.nota_fiscal_id, canceladoPor);
     }
 
     // Cancela remessa (crd_rem_status = 'C')

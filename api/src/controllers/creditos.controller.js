@@ -156,7 +156,7 @@ const obterBoletoQrCode = asyncHandler(async (req, res) => {
  * Cancela remessa: cancela boleto na EFI + exclui créditos, remessa e nota fiscal
  */
 const cancelarRemessa = asyncHandler(async (req, res) => {
-  const { cliente_id } = req.query;
+  const { cliente_id, login } = req.query;
   const { remessa_id } = req.params;
 
   const clienteId = extractClienteId(cliente_id);
@@ -169,9 +169,11 @@ const cancelarRemessa = asyncHandler(async (req, res) => {
     throw new APIError('remessa_id inválido', 400, { campo: 'remessa_id' });
   }
 
-  const resultado = await creditosService.cancelarRemessa(remessaId, clienteId);
+  const canceladoPor = login || req.user?.email || 'sistema';
 
-  logger.info('Remessa cancelada via API:', { clienteId, remessaId });
+  const resultado = await creditosService.cancelarRemessa(remessaId, clienteId, canceladoPor);
+
+  logger.info('Remessa cancelada via API:', { clienteId, remessaId, canceladoPor });
 
   return res.status(200).json(resultado);
 });

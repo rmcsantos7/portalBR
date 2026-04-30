@@ -6,12 +6,16 @@
 import React, { useState, useEffect } from 'react';
 import { creditosAPI } from '../services/api';
 import DetalheRecarga from './DetalheRecarga';
+import { useAuth } from '../contexts/AuthContext';
 
 const ListaRecargas = ({ clienteId, onNovaRecarga }) => {
+  const { usuario } = useAuth();
+  const login = usuario?.usr_login || 'sistema';
   const [todasRecargas, setTodasRecargas] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [search, setSearch] = useState('');
+  const [statusFilter, setStatusFilter] = useState('todos');
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(0);
   const [remessaAberta, setRemessaAberta] = useState(null);
@@ -57,8 +61,20 @@ const ListaRecargas = ({ clienteId, onNovaRecarga }) => {
     setPage(0);
   };
 
+  // Categoriza a situação consolidada da remessa
+  const categoriaStatus = (r) => {
+    if (r.status === 'C') return 'cancelado';
+    const s = (r.boleto_status || '').toLowerCase();
+    if (s === 'paid' || s === 'settled') return 'pago';
+    if (s === 'canceled' || s === 'cancelled' || s === 'expired') return 'cancelado';
+    if (s === 'waiting' || s === 'active' || s === 'pending') return 'pendente';
+    if (!r.nota_fiscal_id) return 'cancelado';
+    return 'pendente';
+  };
+
   // Filtra recargas pelo texto de busca (remessa, restaurante, operador, data)
   const recargasFiltradas = todasRecargas.filter((r) => {
+    if (statusFilter !== 'todos' && categoriaStatus(r) !== statusFilter) return false;
     if (!search.trim()) return true;
     const termo = search.toLowerCase().trim();
     const data = formatarData(r.data_criacao).toLowerCase();
@@ -93,7 +109,7 @@ const ListaRecargas = ({ clienteId, onNovaRecarga }) => {
     if (!cancelModal) return;
     setCancelando(true);
     try {
-      await creditosAPI.cancelarRemessa(clienteId, cancelModal.remessa_id);
+      await creditosAPI.cancelarRemessa(clienteId, cancelModal.remessa_id, login);
       alert('Remessa cancelada com sucesso!');
       setCancelModal(null);
       carregarRecargas();
@@ -178,6 +194,27 @@ const ListaRecargas = ({ clienteId, onNovaRecarga }) => {
             style={{ paddingLeft: '38px', borderRadius: '8px', height: '42px' }}
           />
         </div>
+        <select
+          value={statusFilter}
+          onChange={(e) => { setStatusFilter(e.target.value); setPage(0); }}
+          style={{
+            height: '42px',
+            width: '180px',
+            flex: '0 0 180px',
+            padding: '0 14px',
+            borderRadius: '8px',
+            border: '1px solid var(--cinza-300)',
+            background: '#fff',
+            color: 'var(--cinza-800)',
+            fontSize: '0.88rem',
+            cursor: 'pointer'
+          }}
+        >
+          <option value="todos">Todas situações</option>
+          <option value="pago">Pago</option>
+          <option value="pendente">Pendente</option>
+          <option value="cancelado">Cancelado</option>
+        </select>
         <button
           className="btn-secundario"
           onClick={() => carregarRecargas(0)}

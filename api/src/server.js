@@ -5,12 +5,14 @@
 
 const app = require('./app');
 const logger = require('./utils/logger');
+const cancelarRemessasVencidasJob = require('./jobs/cancelarRemessasVencidas');
 
 const PORT = process.env.PORT || 3999;
 
 const server = app.listen(PORT, () => {
   logger.info(`🚀 Servidor rodando na porta ${PORT}`);
   logger.info(`Ambiente: ${process.env.NODE_ENV || 'development'}`);
+  cancelarRemessasVencidasJob.iniciar();
 });
 
 // Tratamento de sinais de encerramento

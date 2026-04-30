@@ -102,9 +102,9 @@ export const creditosAPI = {
       params: { cliente_id: clienteId }
     });
   },
-  cancelarRemessa: (clienteId, remessaId) => {
+  cancelarRemessa: (clienteId, remessaId, login = 'sistema') => {
     return api.delete(`/creditos/remessa/${remessaId}`, {
-      params: { cliente_id: clienteId }
+      params: { cliente_id: clienteId, login }
     });
   },
   reemitirBoleto: (clienteId, remessaId) => {

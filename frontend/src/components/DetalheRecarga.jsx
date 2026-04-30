@@ -6,10 +6,13 @@
 import React, { useState, useEffect } from 'react';
 import { creditosAPI } from '../services/api';
 import { gerarPdfRemessa } from '../utils/pdfGenerator';
+import { useAuth } from '../contexts/AuthContext';
 
 // Nota fiscal ID está em dados.boleto.nota_fiscal_id
 
 const DetalheRecarga = ({ clienteId, remessaId, onVoltar }) => {
+  const { usuario } = useAuth();
+  const login = usuario?.usr_login || 'sistema';
   const [dados, setDados] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -65,7 +68,7 @@ const DetalheRecarga = ({ clienteId, remessaId, onVoltar }) => {
   const handleCancelar = async () => {
     setCancelando(true);
     try {
-      await creditosAPI.cancelarRemessa(clienteId, remessaId);
+      await creditosAPI.cancelarRemessa(clienteId, remessaId, login);
       alert('Remessa cancelada com sucesso!');
       onVoltar();
     } catch (err) {

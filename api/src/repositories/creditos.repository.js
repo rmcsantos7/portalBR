@@ -446,19 +446,58 @@ const cancelarRemessaRepo = async (client, remessaId, clienteId) => {
 /**
  * Cancela a nota fiscal (crd_not_situacao = 'C')
  */
-const cancelarNotaFiscal = async (client, notaId) => {
+const cancelarNotaFiscal = async (client, notaId, canceladoPor = null) => {
   const sql = `
     UPDATE crd_nota_fiscal
-    SET crd_not_situacao = 'C'
+    SET crd_not_situacao = 'C',
+        crd_not_data_cancelamento = CURRENT_DATE,
+        crd_not_cancelado_por = $2
     WHERE crd_not_id = $1
   `;
 
+  const quem = canceladoPor ? String(canceladoPor).slice(0, 20) : null;
+
   try {
-    const result = await client.query(sql, [notaId]);
+    const result = await client.query(sql, [notaId, quem]);
     logger.info('Nota fiscal cancelada:', { notaId });
     return result.rowCount;
   } catch (error) {
     logger.error('Erro ao cancelar nota fiscal:', { error: error.message });
+    throw error;
+  }
+};
+
+/**
+ * Lista remessas com nota fiscal ativa cuja data de vencimento já passou
+ * e cujo boleto não foi pago/cancelado. Usado pelo job de cancelamento automático.
+ *
+ * @returns {Promise<Array<{remessa_id:number, cliente_id:number, nota_fiscal_id:number, data_vencimento:string, boleto_status:string|null}>>}
+ */
+const listarRemessasVencidasAbertas = async () => {
+  const sql = `
+    SELECT DISTINCT
+      r.crd_usucrerem_id AS remessa_id,
+      r.crd_cli_id       AS cliente_id,
+      nf.crd_not_id      AS nota_fiscal_id,
+      nf.crd_not_data_vencimento AS data_vencimento,
+      nf.crd_not_boleto_status   AS boleto_status
+    FROM crd_usuario_credito_remessa r
+    INNER JOIN crd_usuario_credito c ON c.crd_usucrerem_id = r.crd_usucrerem_id
+    INNER JOIN crd_nota_fiscal nf
+      ON nf.crd_not_id = c.crd_not_id
+      AND nf.crd_not_situacao = 'A'
+    WHERE r.crd_rem_status IS DISTINCT FROM 'C'
+      AND nf.crd_not_data_vencimento < CURRENT_DATE
+      AND (nf.crd_not_boleto_status IS NULL
+           OR LOWER(nf.crd_not_boleto_status) NOT IN ('paid', 'settled', 'canceled', 'cancelled'))
+    ORDER BY r.crd_usucrerem_id ASC
+  `;
+
+  try {
+    const result = await db.query(sql);
+    return result.rows;
+  } catch (error) {
+    logger.error('Erro ao listar remessas vencidas abertas:', { error: error.message });
     throw error;
   }
 };
@@ -475,5 +514,6 @@ module.exports = {
   cancelarCreditosPorRemessa,
   cancelarRemessaRepo,
   cancelarNotaFiscal,
-  atualizarStatusRemessa
+  atualizarStatusRemessa,
+  listarRemessasVencidasAbertas
 };
